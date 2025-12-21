@@ -1,0 +1,3 @@
+# Production dependencies for Flowrra
+#
+# Flowrra has zero core dependencies - it runs on pure Python 3.11+ asyncio
