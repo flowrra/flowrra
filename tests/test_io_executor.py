@@ -20,7 +20,8 @@ class TestIOExecutorBasics:
 
     def test_executor_with_default_config(self):
         """Test executor with default config."""
-        executor = IOExecutor()
+        config = Config()  # Explicitly create default config
+        executor = IOExecutor(config=config)
         assert isinstance(executor.results, InMemoryBackend)
         assert executor._num_workers == 4  # Default from ExecutorConfig
 
