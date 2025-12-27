@@ -2,7 +2,7 @@
 
 import asyncio
 import pytest
-from flowrra import AsyncTaskExecutor
+from flowrra import IOExecutor, Config, ExecutorConfig
 from flowrra.task import TaskStatus
 
 
@@ -12,9 +12,9 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_complete_workflow(self):
         """Test a complete workflow from start to finish."""
-        executor = AsyncTaskExecutor(num_workers=3)
+        config = Config(executor=ExecutorConfig(num_workers=3))
+        executor = IOExecutor(config=config)
 
-        # Register various tasks
         @executor.task()
         async def send_email(to: str, subject: str):
             await asyncio.sleep(0.05)
@@ -59,7 +59,8 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_mixed_success_failure(self):
         """Test workflow with both successful and failing tasks."""
-        executor = AsyncTaskExecutor(num_workers=2)
+        config = Config(executor=ExecutorConfig(num_workers=2))
+        executor = IOExecutor(config=config)
 
         @executor.task(max_retries=0)
         async def success_task():
@@ -83,7 +84,8 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_high_load(self):
         """Test executor under high load."""
-        executor = AsyncTaskExecutor(num_workers=4)
+        config = Config(executor=ExecutorConfig(num_workers=4))
+        executor = IOExecutor(config=config)
 
         @executor.task()
         async def fast_task(n: int):
@@ -106,7 +108,8 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_retry_then_success(self):
         """Test task that retries and eventually succeeds."""
-        executor = AsyncTaskExecutor(num_workers=2)
+        config = Config(executor=ExecutorConfig(num_workers=2))
+        executor = IOExecutor(config=config)
 
         attempts = {"count": 0}
 
@@ -128,7 +131,8 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_priority_ordering(self):
         """Test that priority ordering works correctly."""
-        executor = AsyncTaskExecutor(num_workers=1)  # Single worker
+        config = Config(executor=ExecutorConfig(num_workers=1))  # Single worker
+        executor = IOExecutor(config=config)
 
         execution_order = []
 
@@ -155,7 +159,7 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_cpu_and_io_tasks_together(self):
         """Test running CPU-bound and I/O-bound tasks together."""
-        executor = AsyncTaskExecutor(num_workers=2, cpu_workers=2)
+        executor = IOExecutor(num_workers=2, cpu_workers=2)
 
         @executor.task()
         async def io_task(n: int):
@@ -187,7 +191,8 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_task_result_tracking(self):
         """Test that task results are tracked correctly throughout lifecycle."""
-        executor = AsyncTaskExecutor(num_workers=1)
+        config = Config(executor=ExecutorConfig(num_workers=1))
+        executor = IOExecutor(config=config)
 
         @executor.task()
         async def tracked_task():
@@ -212,8 +217,9 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_multiple_executors(self):
         """Test running multiple executors simultaneously."""
-        executor1 = AsyncTaskExecutor(num_workers=2)
-        executor2 = AsyncTaskExecutor(num_workers=2)
+        config = Config(executor=ExecutorConfig(num_workers=2))
+        executor1 = IOExecutor(config=config)
+        executor2 = IOExecutor(config=config)
 
         @executor1.task()
         async def task1():

@@ -23,14 +23,10 @@ class TaskRegistry:
             cpu_bound: Whether task is CPU-bound (runs in ProcessPoolExecutor)
             max_retries: Max retry attempts on failure
             retry_delay: Seconds between retries
-
-        Raises:
-            TypeError: If decorated function is not async
         """
         def decorator(func: Callable[..., Coroutine]):
             task_name = name or func.__name__
             if cpu_bound:
-                # CPU-bound must be sync
                 if asyncio.iscoroutinefunction(func):
                     raise TypeError(
                         f"CPU-bound task '{task_name}' must be a sync function, not async"

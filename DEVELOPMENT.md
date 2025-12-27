@@ -28,6 +28,9 @@ source .venv/bin/activate
 
 # Install in editable mode with dev dependencies
 pip install -e ".[dev]"
+
+# Or with Redis backend support
+pip install -e ".[dev,redis]"
 ```
 
 ### Option 2: Using requirements files
@@ -73,12 +76,18 @@ flowrra/
 │       ├── __init__.py          # Public API
 │       ├── task.py              # Task models
 │       ├── registry.py          # Task registration
-│       ├── executor.py          # Main executor
 │       ├── exceptions.py        # Custom exceptions
+│       ├── executors/
+│       │   ├── __init__.py
+│       │   ├── base.py          # Base executor
+│       │   ├── io_executor.py   # I/O-bound executor
+│       │   └── cpu_executor.py  # CPU-bound executor
 │       └── backends/
 │           ├── __init__.py
 │           ├── base.py          # Backend interface
-│           └── memory.py        # In-memory backend
+│           ├── memory.py        # In-memory backend
+│           ├── redis.py         # Redis backend
+│           └── factory.py       # Backend factory
 ├── tests/
 │   ├── __init__.py
 │   ├── conftest.py              # Pytest fixtures
@@ -86,7 +95,10 @@ flowrra/
 │   ├── test_exceptions.py       # Exception tests
 │   ├── test_registry.py         # Registry tests
 │   ├── test_backends.py         # Backend tests
-│   ├── test_executor.py         # Executor tests
+│   ├── test_redis_backend.py    # Redis backend tests
+│   ├── test_backend_factory.py  # Factory tests
+│   ├── test_io_executor.py      # IOExecutor tests
+│   ├── test_cpu_executor.py     # CPUExecutor tests
 │   ├── test_integration.py      # Integration tests
 │   └── README.md                # Test documentation
 ├── examples/
@@ -96,6 +108,7 @@ flowrra/
 ├── requirements.txt             # Production deps
 ├── requirements-dev.txt         # Development deps
 ├── README.md                    # Project README
+├── QUICKSTART.md                # Quick start guide
 ├── DEVELOPMENT.md               # This file
 └── LICENSE                      # Apache 2.0 License
 ```
@@ -130,6 +143,12 @@ pytest tests/ -v --timeout=30
 
 # Run only fast tests (exclude slow integration tests)
 pytest tests/ -v -m "not slow"
+
+# Run tests with Redis backend (requires Redis server running)
+pytest tests/test_redis_backend.py -v
+
+# Skip Redis tests if Redis not available
+pytest tests/ -v --ignore=tests/test_redis_backend.py
 ```
 
 ### 2. Code Quality
@@ -176,18 +195,18 @@ python examples/basic_usage.py
 # Create your own example
 cat > examples/my_example.py << 'EOF'
 import asyncio
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 
 async def main():
-    executor = AsyncTaskExecutor(num_workers=2)
+    app = Flowrra.from_urls()
 
-    @executor.task()
+    @app.task()
     async def my_task(x: int):
         return x * 2
 
-    async with executor:
-        task_id = await executor.submit(my_task, 21)
-        result = await executor.wait_for_result(task_id, timeout=5.0)
+    async with app:
+        task_id = await app.submit(my_task, 21)
+        result = await app.wait_for_result(task_id, timeout=5.0)
         print(f"Result: {result.result}")
 
 if __name__ == "__main__":
@@ -216,20 +235,20 @@ Add tests in `tests/` for any new functionality:
 ```python
 # tests/test_my_feature.py
 import pytest
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 
 class TestMyFeature:
     @pytest.mark.asyncio
     async def test_my_feature(self):
-        executor = AsyncTaskExecutor(num_workers=2)
+        app = Flowrra.from_urls()
 
-        @executor.task()
+        @app.task()
         async def my_new_task():
             return "feature works!"
 
-        async with executor:
-            task_id = await executor.submit(my_new_task)
-            result = await executor.wait_for_result(task_id, timeout=2.0)
+        async with app:
+            task_id = await app.submit(my_new_task)
+            result = await app.wait_for_result(task_id, timeout=2.0)
 
             assert result.result == "feature works!"
 ```
@@ -278,6 +297,8 @@ git push origin feature/my-new-feature
 4. Export in `src/flowrra/backends/__init__.py`
 5. Update documentation
 
+See [BACKENDS.md](BACKENDS.md) for detailed backend implementation guide.
+
 Example:
 
 ```python
@@ -297,6 +318,25 @@ class MyBackend(BaseResultBackend):
     async def wait_for(self, task_id: str, timeout: float | None) -> TaskResult:
         # Implementation
         pass
+```
+
+### Testing Redis Backend
+
+If you're working on Redis backend features, you'll need Redis server running:
+
+```bash
+# Start Redis with Docker
+docker run -d -p 6379:6379 redis:latest
+
+# Or install locally
+brew install redis  # macOS
+brew services start redis
+
+# Run Redis tests
+pytest tests/test_redis_backend.py -v
+
+# Run all tests including Redis
+pytest tests/ -v
 ```
 
 ### Adding a New Exception
@@ -327,12 +367,12 @@ logging.basicConfig(level=logging.DEBUG)
 import asyncio
 import pytest
 import time
-from flowrra import AsyncTaskExecutor
+from flowrra import IOExecutor
 
 @pytest.mark.asyncio
 async def test_throughput():
     """Test task throughput under load."""
-    executor = AsyncTaskExecutor(num_workers=10)
+    executor = IOExecutor(num_workers=10)
 
     @executor.task()
     async def fast_task(n: int):

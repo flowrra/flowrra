@@ -130,20 +130,20 @@ tests/
 Example:
 ```python
 import pytest
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 
 class TestNewFeature:
     @pytest.mark.asyncio
     async def test_feature_works(self):
-        executor = AsyncTaskExecutor(num_workers=2)
+        app = Flowrra.from_urls()
 
-        @executor.task()
+        @app.task()
         async def my_task():
             return "success"
 
-        async with executor:
-            task_id = await executor.submit(my_task)
-            result = await executor.wait_for_result(task_id, timeout=2.0)
+        async with app:
+            task_id = await app.submit(my_task)
+            result = await app.wait_for_result(task_id, timeout=2.0)
 
             assert result.result == "success"
 ```

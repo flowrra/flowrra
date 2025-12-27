@@ -1,6 +1,5 @@
 """Tests for custom exceptions."""
 
-import pytest
 from flowrra.exceptions import (
     FlowrraError,
     TaskNotFoundError,

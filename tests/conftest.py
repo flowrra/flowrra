@@ -2,14 +2,15 @@
 
 import pytest
 import asyncio
-from flowrra import AsyncTaskExecutor
+from flowrra import IOExecutor, Config, ExecutorConfig
 from flowrra.backends.memory import InMemoryBackend
 
 
 @pytest.fixture
-def executor():
-    """Create a basic executor for testing."""
-    return AsyncTaskExecutor(num_workers=2)
+def io_executor():
+    """Create a basic IOExecutor for testing."""
+    config = Config(executor=ExecutorConfig(num_workers=2))
+    return IOExecutor(config=config)
 
 
 @pytest.fixture
@@ -19,9 +20,10 @@ def backend():
 
 
 @pytest.fixture
-async def running_executor():
-    """Create and start an executor, then clean up after test."""
-    executor = AsyncTaskExecutor(num_workers=2)
+async def running_io_executor():
+    """Create and start an IOExecutor, then clean up after test."""
+    config = Config(executor=ExecutorConfig(num_workers=2))
+    executor = IOExecutor(config=config)
     await executor.start()
 
     yield executor

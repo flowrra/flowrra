@@ -19,6 +19,11 @@ Lightweight async task queue built on pure Python asyncio. A Celery-inspired bac
 pip install flowrra
 ```
 
+With Redis backend support (for distributed execution):
+```bash
+pip install flowrra[redis]
+```
+
 For development:
 ```bash
 pip install flowrra[dev]
@@ -26,22 +31,24 @@ pip install flowrra[dev]
 
 ## Quick Start
 
+### Basic Usage
+
 ```python
 import asyncio
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 
-# Create executor
-executor = AsyncTaskExecutor(num_workers=4)
+# Create Flowrra application
+app = Flowrra.from_urls()
 
-# Register tasks
-@executor.task()
-async def send_email(to: str, subject: str, body: str):
+# Register I/O-bound tasks (async functions)
+@app.task()
+async def send_email(to: str, subject: str):
     """Send an email asynchronously."""
     await asyncio.sleep(0.1)  # Simulate email sending
     print(f"Email sent to {to}: {subject}")
     return {"status": "sent", "to": to}
 
-@executor.task(max_retries=5, retry_delay=2.0)
+@app.task(max_retries=5, retry_delay=2.0)
 async def fetch_data(url: str):
     """Fetch data with automatic retries."""
     # Your HTTP request logic here
@@ -49,35 +56,102 @@ async def fetch_data(url: str):
 
 # Execute tasks
 async def main():
-    async with executor:
+    async with app:
         # Submit tasks
-        task_id = await executor.submit(send_email, "user@example.com", "Hello", "World")
+        task_id = await app.submit(send_email, "user@example.com", "Hello")
 
         # Wait for result
-        result = await executor.wait_for_result(task_id, timeout=10.0)
+        result = await app.wait_for_result(task_id, timeout=10.0)
         print(f"Result: {result.result}")
 
 asyncio.run(main())
+```
+
+### CPU-Bound Tasks
+
+For CPU-intensive computations, use `cpu_bound=True` with sync functions:
+
+```python
+import asyncio
+from flowrra import Flowrra
+
+# CPU tasks require Redis backend for cross-process result sharing
+app = Flowrra.from_urls(backend="redis://localhost:6379/0")
+
+# Register CPU-bound task (sync function, not async!)
+@app.task(cpu_bound=True)
+def compute_heavy(n: int):
+    """CPU-intensive computation runs in separate process."""
+    return sum(i ** 2 for i in range(n))
+
+async def main():
+    async with app:
+        task_id = await app.submit(compute_heavy, 1000000)
+        result = await app.wait_for_result(task_id, timeout=10.0)
+        print(f"Result: {result.result}")
+
+asyncio.run(main())
+```
+
+**Note**: CPU-bound tasks require a Redis backend. Install with `pip install flowrra[redis]` and ensure Redis is running.
+
+### Distributed Task Queue
+
+Use Redis broker for distributed task queueing across multiple workers:
+
+```python
+from flowrra import Flowrra
+
+# Redis broker queues tasks, Redis backend stores results
+app = Flowrra.from_urls(
+    broker="redis://localhost:6379/0",   # Task queue
+    backend="redis://localhost:6379/1"   # Result storage
+)
+
+@app.task()
+async def process_job(job_id: int):
+    # Workers pull tasks from Redis queue
+    return f"Processed job {job_id}"
 ```
 
 ## Core Concepts
 
 ### Task Registration
 
-Register async functions as tasks using the `@executor.task()` decorator:
+Register tasks using the `@app.task()` decorator:
+
+**I/O-Bound Tasks** - Async functions for network, file I/O, API calls:
 
 ```python
-@executor.task(name="custom_name", max_retries=3, retry_delay=1.0)
-async def my_task(arg1: str, arg2: int):
-    # Task logic here
+from flowrra import Flowrra
+
+app = Flowrra.from_urls()
+
+@app.task(name="custom_name", max_retries=3, retry_delay=1.0)
+async def my_io_task(arg1: str, arg2: int):
+    # Must be async for I/O-bound tasks
+    await asyncio.sleep(1)
     return result
+```
+
+**CPU-Bound Tasks** - Sync functions for heavy computations:
+
+```python
+from flowrra import Flowrra
+
+# Requires Redis backend for cross-process result sharing
+app = Flowrra.from_urls(backend="redis://localhost:6379/0")
+
+@app.task(cpu_bound=True, max_retries=3, retry_delay=1.0)
+def my_cpu_task(arg1: str, arg2: int):
+    # Must be sync (not async) for CPU-bound tasks
+    return compute_result(arg1, arg2)
 ```
 
 **Parameters:**
 - `name` - Custom task name (defaults to function name)
 - `max_retries` - Number of retry attempts on failure (default: 3)
 - `retry_delay` - Seconds between retries (default: 1.0)
-- `cpu_bound` - Use ProcessPoolExecutor for CPU-heavy tasks (default: False)
 
 ### Task Submission
 
@@ -85,13 +159,13 @@ Submit tasks for execution and get a unique task ID:
 
 ```python
 # Submit with positional arguments
-task_id = await executor.submit(my_task, "hello", 42)
+task_id = await app.submit(my_task, "hello", 42)
 
 # Submit with keyword arguments
-task_id = await executor.submit(my_task, arg1="hello", arg2=42)
+task_id = await app.submit(my_task, arg1="hello", arg2=42)
 
 # Submit with priority (lower number = higher priority)
-task_id = await executor.submit(my_task, "hello", 42, priority=1)
+task_id = await app.submit(my_task, "hello", 42, priority=1)
 ```
 
 ### Result Retrieval
@@ -100,7 +174,7 @@ Get task results using the task ID:
 
 ```python
 # Wait for result with timeout
-result = await executor.wait_for_result(task_id, timeout=30.0)
+result = await app.wait_for_result(task_id, timeout=30.0)
 
 # Check result status
 if result.status == TaskStatus.SUCCESS:
@@ -109,31 +183,44 @@ elif result.status == TaskStatus.FAILED:
     print(f"Failed: {result.error}")
 
 # Get result without waiting (returns None if not ready)
-result = await executor.get_result(task_id)
+result = await app.get_result(task_id)
 ```
 
-### CPU-Bound Tasks
+### Redis Backend for Distributed Execution
 
-For CPU-intensive operations, use `cpu_bound=True` to run in a separate process:
+For production deployments and distributed task execution, configure Redis when creating your Flowrra app:
 
 ```python
-# Define at module level (required for pickling)
-def compute_fibonacci(n: int) -> int:
-    """Compute Fibonacci number."""
-    if n <= 1:
-        return n
-    return compute_fibonacci(n-1) + compute_fibonacci(n-2)
+from flowrra import Flowrra
 
-# Register as CPU-bound task
-executor = AsyncTaskExecutor(num_workers=4, cpu_workers=2)
+# Flowrra with Redis backend and broker
+app = Flowrra.from_urls(
+    broker="redis://localhost:6379/0",   # Task queue
+    backend="redis://localhost:6379/1"   # Result storage
+)
 
-@executor.task(cpu_bound=True)
-def heavy_computation(data: list):
-    # CPU-intensive work here
-    return process_data(data)
+# Task registration works the same
+@app.task()
+async def my_io_task(data: str):
+    return await process(data)
+
+@app.task(cpu_bound=True)
+def my_cpu_task(n: int):
+    return compute(n)
 ```
 
-**Important:** CPU-bound tasks must be regular functions (not async) and defined at module level for ProcessPoolExecutor pickling.
+**Supported Redis connection strings:**
+- Basic: `redis://localhost:6379/0`
+- With password: `redis://:password@localhost:6379/0`
+- With username: `redis://username:password@localhost:6379/0`
+- SSL/TLS: `rediss://localhost:6379/0`
+- Unix socket: `unix:///tmp/redis.sock`
+
+**Important:**
+- CPU-bound tasks must be regular functions (not async)
+- Tasks must be defined at module level for ProcessPoolExecutor pickling
+- CPU-bound tasks require Redis backend for cross-process result sharing
+- Install Redis support: `pip install flowrra[redis]`
 
 ## Framework Integration
 
@@ -142,21 +229,21 @@ def heavy_computation(data: list):
 Perfect for background tasks in FastAPI applications:
 
 ```python
-from fastapi import FastAPI, BackgroundTasks
-from flowrra import AsyncTaskExecutor
+from fastapi import FastAPI
+from flowrra import Flowrra
 from contextlib import asynccontextmanager
 
-# Initialize executor
-executor = AsyncTaskExecutor(num_workers=10)
+# Initialize Flowrra app
+flowrra_app = Flowrra.from_urls()
 
-@executor.task(max_retries=3)
+@flowrra_app.task(max_retries=3)
 async def send_welcome_email(email: str, username: str):
     """Send welcome email to new users."""
     # Your email logic here
     await asyncio.sleep(1)
     return {"email": email, "sent": True}
 
-@executor.task()
+@flowrra_app.task()
 async def process_upload(file_path: str, user_id: int):
     """Process uploaded file in background."""
     # Your processing logic
@@ -165,11 +252,11 @@ async def process_upload(file_path: str, user_id: int):
 # Lifespan context manager for startup/shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Start executor
-    await executor.start()
+    # Startup: Start Flowrra
+    await flowrra_app.start()
     yield
-    # Shutdown: Stop executor
-    await executor.stop()
+    # Shutdown: Stop Flowrra
+    await flowrra_app.stop()
 
 # Create FastAPI app with lifespan
 app = FastAPI(lifespan=lifespan)
@@ -180,7 +267,7 @@ async def register_user(email: str, username: str):
     # Save user to database...
 
     # Submit background task
-    task_id = await executor.submit(send_welcome_email, email, username)
+    task_id = await flowrra_app.submit(send_welcome_email, email, username)
 
     return {
         "user_id": 123,
@@ -194,7 +281,7 @@ async def upload_file(file_path: str, user_id: int):
     # Save file...
 
     # Submit processing task
-    task_id = await executor.submit(process_upload, file_path, user_id)
+    task_id = await flowrra_app.submit(process_upload, file_path, user_id)
 
     return {
         "task_id": task_id,
@@ -204,7 +291,7 @@ async def upload_file(file_path: str, user_id: int):
 @app.get("/task/{task_id}")
 async def get_task_status(task_id: str):
     """Check task status."""
-    result = await executor.get_result(task_id)
+    result = await flowrra_app.get_result(task_id)
 
     if result is None:
         return {"status": "not_found"}
@@ -224,12 +311,12 @@ Use Flowrra in Django applications with async views:
 ```python
 # tasks.py
 import asyncio
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 
-# Initialize executor (consider using django.conf for settings)
-executor = AsyncTaskExecutor(num_workers=10)
+# Initialize Flowrra app (consider using django.conf for settings)
+app = Flowrra.from_urls()
 
-@executor.task(max_retries=3, retry_delay=2.0)
+@app.task(max_retries=3, retry_delay=2.0)
 async def send_notification(user_id: int, message: str):
     """Send notification to user."""
     from myapp.models import User
@@ -240,7 +327,7 @@ async def send_notification(user_id: int, message: str):
     # Send notification logic...
     return {"user": user.email, "sent": True}
 
-@executor.task()
+@app.task()
 async def generate_report(report_id: int):
     """Generate report asynchronously."""
     from myapp.models import Report
@@ -257,7 +344,7 @@ async def generate_report(report_id: int):
 # views.py
 from django.http import JsonResponse
 from asgiref.sync import async_to_sync
-from .tasks import executor, send_notification, generate_report
+from .tasks import app, send_notification, generate_report
 
 # Option 1: Async view (Django 4.1+)
 async def create_notification(request):
@@ -265,7 +352,7 @@ async def create_notification(request):
     user_id = request.POST.get('user_id')
     message = request.POST.get('message')
 
-    task_id = await executor.submit(send_notification, int(user_id), message)
+    task_id = await app.submit(send_notification, int(user_id), message)
 
     return JsonResponse({
         "task_id": task_id,
@@ -278,7 +365,7 @@ def create_report(request):
     report_id = request.POST.get('report_id')
 
     # Wrap async call with async_to_sync
-    task_id = async_to_sync(executor.submit)(generate_report, int(report_id))
+    task_id = async_to_sync(app.submit)(generate_report, int(report_id))
 
     return JsonResponse({
         "task_id": task_id,
@@ -287,7 +374,7 @@ def create_report(request):
 
 async def check_task(request, task_id):
     """Check task status."""
-    result = await executor.get_result(task_id)
+    result = await app.get_result(task_id)
 
     if result is None:
         return JsonResponse({"error": "Task not found"}, status=404)
@@ -306,18 +393,18 @@ from django.core.asgi import get_asgi_application
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myproject.settings')
 
-# Start executor on application startup
-from .tasks import executor
+# Start Flowrra on application startup
+from .tasks import app
 import asyncio
 
 application = get_asgi_application()
 
-# Start executor when Django starts
+# Start Flowrra when Django starts
 async def startup():
-    await executor.start()
+    await app.start()
 
 async def shutdown():
-    await executor.stop()
+    await app.stop()
 
 # Run startup
 asyncio.create_task(startup())
@@ -329,14 +416,14 @@ Use Flowrra with Flask and asyncio:
 
 ```python
 from flask import Flask, jsonify, request
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 import asyncio
 from functools import wraps
 
-app = Flask(__name__)
+flask_app = Flask(__name__)
 
-# Initialize executor
-executor = AsyncTaskExecutor(num_workers=8)
+# Initialize Flowrra app
+flowrra_app = Flowrra.from_urls()
 
 # Helper to run async functions in Flask
 def async_route(f):
@@ -346,13 +433,13 @@ def async_route(f):
     return wrapped
 
 # Register tasks
-@executor.task(max_retries=3)
+@flowrra_app.task(max_retries=3)
 async def send_email_task(to: str, subject: str, body: str):
     """Send email asynchronously."""
     await asyncio.sleep(1)  # Simulate email sending
     return {"to": to, "subject": subject, "sent": True}
 
-@executor.task()
+@flowrra_app.task()
 async def process_data_task(data: dict):
     """Process data in background."""
     # Your processing logic
@@ -360,13 +447,13 @@ async def process_data_task(data: dict):
     return {"processed": True, "items": len(data)}
 
 # Flask routes
-@app.route('/send-email', methods=['POST'])
+@flask_app.route('/send-email', methods=['POST'])
 @async_route
 async def send_email():
     """Submit email task."""
     data = request.get_json()
 
-    task_id = await executor.submit(
+    task_id = await flowrra_app.submit(
         send_email_task,
         data['to'],
         data['subject'],
@@ -378,24 +465,24 @@ async def send_email():
         "status": "submitted"
     })
 
-@app.route('/process', methods=['POST'])
+@flask_app.route('/process', methods=['POST'])
 @async_route
 async def process_data():
     """Submit processing task."""
     data = request.get_json()
 
-    task_id = await executor.submit(process_data_task, data)
+    task_id = await flowrra_app.submit(process_data_task, data)
 
     return jsonify({
         "task_id": task_id,
         "status": "processing"
     })
 
-@app.route('/task/<task_id>', methods=['GET'])
+@flask_app.route('/task/<task_id>', methods=['GET'])
 @async_route
 async def get_task_status(task_id):
     """Get task status and result."""
-    result = await executor.get_result(task_id)
+    result = await flowrra_app.get_result(task_id)
 
     if result is None:
         return jsonify({"error": "Task not found"}), 404
@@ -409,23 +496,23 @@ async def get_task_status(task_id):
     })
 
 # Application lifecycle
-@app.before_serving
+@flask_app.before_serving
 @async_route
 async def before_serving():
-    """Start executor before serving requests."""
-    await executor.start()
-    print("Executor started")
+    """Start Flowrra before serving requests."""
+    await flowrra_app.start()
+    print("Flowrra started")
 
-@app.after_serving
+@flask_app.after_serving
 @async_route
 async def after_serving():
-    """Stop executor after serving."""
-    await executor.stop()
-    print("Executor stopped")
+    """Stop Flowrra after serving."""
+    await flowrra_app.stop()
+    print("Flowrra stopped")
 
 if __name__ == '__main__':
     # For development (use Gunicorn/Uvicorn for production)
-    app.run(debug=True)
+    flask_app.run(debug=True)
 ```
 
 **Note:** For production Flask apps with Flowrra, consider using an ASGI server like Uvicorn or Hypercorn instead of the default WSGI server.
@@ -438,9 +525,9 @@ Control task execution order with priorities:
 
 ```python
 # Lower priority number = higher priority
-await executor.submit(critical_task, priority=1)      # Executes first
-await executor.submit(normal_task, priority=5)        # Executes second
-await executor.submit(low_priority_task, priority=10) # Executes last
+await app.submit(critical_task, priority=1)      # Executes first
+await app.submit(normal_task, priority=5)        # Executes second
+await app.submit(low_priority_task, priority=10) # Executes last
 ```
 
 ### Custom Retry Logic
@@ -448,7 +535,7 @@ await executor.submit(low_priority_task, priority=10) # Executes last
 Configure retry behavior per task:
 
 ```python
-@executor.task(max_retries=5, retry_delay=2.0)
+@app.task(max_retries=5, retry_delay=2.0)
 async def flaky_api_call(url: str):
     """API call with aggressive retries."""
     # Will retry up to 5 times with 2 second delay
@@ -463,7 +550,7 @@ async def flaky_api_call(url: str):
 Handle task failures gracefully:
 
 ```python
-@executor.task(max_retries=3)
+@app.task(max_retries=3)
 async def risky_operation():
     """Operation that might fail."""
     if random.random() < 0.5:
@@ -471,7 +558,7 @@ async def risky_operation():
     return "success"
 
 # Check result
-result = await executor.wait_for_result(task_id, timeout=10.0)
+result = await app.wait_for_result(task_id, timeout=10.0)
 
 if result.status == TaskStatus.FAILED:
     print(f"Task failed after {result.retries} retries")
@@ -482,73 +569,99 @@ elif result.status == TaskStatus.SUCCESS:
 
 ### Custom Backends
 
-Implement custom result storage backends:
+Flowrra includes a Redis backend, or you can implement your own. For most use cases, we recommend using Redis:
 
 ```python
-from flowrra.backends.base import BaseResultBackend
-from flowrra.task import TaskResult
+from flowrra import Flowrra
 
-class RedisBackend(BaseResultBackend):
-    """Redis-based result storage."""
-
-    def __init__(self, redis_url: str):
-        self.redis = redis.from_url(redis_url)
-
-    async def store(self, task_id: str, result: TaskResult) -> None:
-        """Store result in Redis."""
-        await self.redis.set(f"task:{task_id}", result.to_dict())
-
-    async def get(self, task_id: str) -> TaskResult | None:
-        """Get result from Redis."""
-        data = await self.redis.get(f"task:{task_id}")
-        return TaskResult.from_dict(data) if data else None
-
-    async def wait_for(self, task_id: str, timeout: float | None) -> TaskResult:
-        """Wait for task completion."""
-        # Implementation here
-        pass
-
-# Use custom backend
-executor = AsyncTaskExecutor(
-    num_workers=10,
-    backend=RedisBackend("redis://localhost:6379")
+# Recommended: Use Redis backend with connection string
+app = Flowrra.from_urls(
+    broker="redis://localhost:6379/0",
+    backend="redis://localhost:6379/1"
 )
+
+# Or with Config
+from flowrra import Config, BrokerConfig, BackendConfig
+
+config = Config(
+    broker=BrokerConfig(url="redis://localhost:6379/0"),
+    backend=BackendConfig(url="redis://localhost:6379/1", ttl=3600)
+)
+app = Flowrra(config=config)
 ```
+
+**Built-in backends:**
+- `InMemoryBackend` - Default, single-process (automatically used when no backend specified)
+- `RedisBackend` - Production-ready, distributed (via connection string)
 
 ## Configuration
 
-### Executor Options
+### Flowrra Configuration
 
+**Using URLs** (recommended):
 ```python
-executor = AsyncTaskExecutor(
-    num_workers=10,        # Number of async I/O workers
-    cpu_workers=4,         # Number of CPU-bound workers (ProcessPoolExecutor)
-    backend=None,          # Custom result backend (defaults to InMemoryBackend)
+from flowrra import Flowrra
+
+# Simple in-memory configuration
+app = Flowrra.from_urls()
+
+# With Redis backend and broker
+app = Flowrra.from_urls(
+    broker="redis://localhost:6379/0",   # Task queue
+    backend="redis://localhost:6379/1"   # Result storage
 )
+```
+
+**Using Config objects** (advanced):
+```python
+from flowrra import Flowrra, Config, BrokerConfig, BackendConfig, ExecutorConfig
+
+config = Config(
+    broker=BrokerConfig(
+        url="redis://localhost:6379/0",
+        max_connections=50,
+        socket_timeout=5.0
+    ),
+    backend=BackendConfig(
+        url="redis://localhost:6379/1",
+        ttl=3600,  # Result expiration in seconds
+        max_connections=50
+    ),
+    executor=ExecutorConfig(
+        num_workers=10,        # Async workers for I/O tasks
+        cpu_workers=4,         # Process workers for CPU tasks
+        max_queue_size=1000,
+        max_retries=3,
+        retry_delay=1.0
+    )
+)
+
+app = Flowrra(config=config)
 ```
 
 ### Task Options
 
 ```python
-@executor.task(
-    name="custom_name",    # Custom task name
-    max_retries=3,         # Number of retry attempts
-    retry_delay=1.0,       # Seconds between retries
-    cpu_bound=False,       # Use ProcessPoolExecutor
+@app.task(
+    name="custom_name",    # Custom task name (defaults to function name)
+    max_retries=3,         # Number of retry attempts (default: 3)
+    retry_delay=1.0,       # Seconds between retries (default: 1.0)
+    cpu_bound=False,       # True for CPU-bound, False for I/O-bound (default)
 )
-async def my_task():
+async def my_task():     # async for I/O-bound, sync for cpu_bound=True
     pass
 ```
 
 ## Best Practices
 
-1. **Use async for I/O-bound tasks** - Network requests, database queries, file I/O
-2. **Use cpu_bound=True for CPU-heavy tasks** - Data processing, computations
-3. **Set appropriate retry values** - Balance reliability with resource usage
-4. **Use priority queues** - Critical tasks get priority=1, normal tasks priority=5
-5. **Handle failures gracefully** - Check result status before using result
-6. **Use context managers** - Ensures proper cleanup with `async with executor:`
-7. **Module-level CPU tasks** - Define CPU-bound tasks at module level for pickling
+1. **Use async for I/O-bound tasks** - Network requests, database queries, file I/O (default)
+2. **Use cpu_bound=True for CPU-heavy tasks** - Data processing, computations, image processing
+3. **Use Redis for production** - Install `flowrra[redis]` and configure broker/backend URLs
+4. **Set appropriate retry values** - Balance reliability with resource usage
+5. **Use priority queues** - Critical tasks get priority=1, normal tasks priority=5
+6. **Handle failures gracefully** - Check result status before using result
+7. **Use context managers** - Ensures proper cleanup with `async with app:`
+8. **Module-level CPU tasks** - Define CPU-bound tasks at module level for pickling
 
 ## Performance Tips
 
@@ -566,23 +679,28 @@ async def my_task():
 
 ## API Reference
 
-### AsyncTaskExecutor
+### Flowrra
+
+Unified application for I/O-bound and CPU-bound task execution:
 
 ```python
-class AsyncTaskExecutor:
-    def __init__(
-        self,
-        num_workers: int = 4,
-        cpu_workers: int | None = None,
-        backend: BaseResultBackend | None = None
-    )
+class Flowrra:
+    def __init__(self, config: Config | None = None)
+
+    @classmethod
+    def from_urls(
+        cls,
+        broker: str | None = None,
+        backend: str | None = None,
+    ) -> "Flowrra"
 
     def task(
         self,
         name: str | None = None,
-        cpu_bound: bool = False,
+        cpu_bound: bool = False,  # False = I/O-bound (async), True = CPU-bound (sync)
         max_retries: int = 3,
-        retry_delay: float = 1.0
+        retry_delay: float = 1.0,
+        **kwargs
     ) -> Callable
 
     async def submit(
@@ -604,8 +722,46 @@ class AsyncTaskExecutor:
     async def start(self) -> None
     async def stop(self, wait: bool = True, timeout: float = 30.0) -> None
 
+    @property
     def is_running(self) -> bool
-    def pending_count(self) -> int
+```
+
+### Config
+
+Configuration for Flowrra application:
+
+```python
+@dataclass
+class Config:
+    broker: BrokerConfig | None = None
+    backend: BackendConfig | None = None
+    executor: ExecutorConfig = field(default_factory=ExecutorConfig)
+
+    @classmethod
+    def from_env(cls, prefix: str = "FLOWRRA_") -> "Config"
+
+@dataclass
+class BrokerConfig:
+    url: str
+    max_connections: int = 50
+    socket_timeout: float = 5.0
+    retry_on_timeout: bool = True
+
+@dataclass
+class BackendConfig:
+    url: str
+    ttl: int | None = None
+    max_connections: int = 50
+    socket_timeout: float = 5.0
+    retry_on_timeout: bool = True
+
+@dataclass
+class ExecutorConfig:
+    num_workers: int = 4          # Async workers for I/O tasks
+    cpu_workers: int | None = None # Process workers for CPU tasks
+    max_queue_size: int = 1000
+    max_retries: int = 3
+    retry_delay: float = 1.0
 ```
 
 ### TaskResult
@@ -672,7 +828,8 @@ mypy src/flowrra/
 ## Requirements
 
 - Python 3.11+
-- Zero runtime dependencies
+- Zero runtime dependencies (core functionality)
+- Optional: `redis[hiredis]>=5.0.0` for Redis backend support
 
 ## License
 
