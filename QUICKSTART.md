@@ -8,11 +8,15 @@ Get started with Flowrra in 5 minutes!
 # Install from source (for development)
 pip install -e .
 
+# With Redis backend support (recommended for production)
+pip install -e ".[redis]"
+
 # Or install with dev dependencies
 pip install -e ".[dev]"
 
 # When published to PyPI (future):
 pip install flowrra
+pip install flowrra[redis]  # With Redis support
 ```
 
 ## Basic Usage
@@ -21,25 +25,25 @@ pip install flowrra
 
 ```python
 import asyncio
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 
 async def main():
-    # Create executor
-    executor = AsyncTaskExecutor(num_workers=4)
+    # Create Flowrra application
+    app = Flowrra.from_urls()
 
-    # Register a task
-    @executor.task()
+    # Register an I/O-bound task (async)
+    @app.task()
     async def send_email(to: str, subject: str):
         await asyncio.sleep(1)  # Simulate sending
         return f"Email sent to {to}"
 
     # Use context manager for automatic cleanup
-    async with executor:
+    async with app:
         # Submit task
-        task_id = await executor.submit(send_email, "user@example.com", "Hello!")
+        task_id = await app.submit(send_email, "user@example.com", "Hello!")
 
         # Wait for result
-        result = await executor.wait_for_result(task_id, timeout=5.0)
+        result = await app.wait_for_result(task_id, timeout=5.0)
 
         print(f"Status: {result.status.value}")
         print(f"Result: {result.result}")
@@ -56,17 +60,20 @@ Result: Email sent to user@example.com
 
 ### 2. CPU-Bound Tasks
 
-For compute-heavy work, use `cpu_bound=True`:
+For compute-heavy work, use `cpu_bound=True` with Redis backend:
 
 ```python
 import asyncio
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 
 async def main():
-    executor = AsyncTaskExecutor(num_workers=2, cpu_workers=4)
+    # CPU tasks require explicit backend for cross-process result sharing
+    app = Flowrra.from_urls(
+        backend="redis://localhost:6379/0"  # Redis connection string
+    )
 
     # CPU-bound task must be sync (not async)
-    @executor.task(cpu_bound=True)
+    @app.task(cpu_bound=True)
     def compute_fibonacci(n: int):
         if n <= 1:
             return n
@@ -75,15 +82,17 @@ async def main():
             a, b = b, a + b
         return b
 
-    async with executor:
-        task_id = await executor.submit(compute_fibonacci, 1000)
-        result = await executor.wait_for_result(task_id, timeout=5.0)
+    async with app:
+        task_id = await app.submit(compute_fibonacci, 1000)
+        result = await app.wait_for_result(task_id, timeout=5.0)
 
         print(f"Fibonacci(1000) calculated: {len(str(result.result))} digits")
 
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+**Note:** Requires Redis server running and `pip install flowrra[redis]`
 
 ### 3. Retry Logic
 
@@ -92,20 +101,20 @@ Tasks automatically retry on failure:
 ```python
 import asyncio
 import random
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 
 async def main():
-    executor = AsyncTaskExecutor(num_workers=2)
+    app = Flowrra.from_urls()
 
-    @executor.task(max_retries=5, retry_delay=0.5)
+    @app.task(max_retries=5, retry_delay=0.5)
     async def flaky_api_call():
         if random.random() < 0.7:  # 70% failure rate
             raise RuntimeError("API temporarily unavailable")
         return {"status": "success"}
 
-    async with executor:
-        task_id = await executor.submit(flaky_api_call)
-        result = await executor.wait_for_result(task_id, timeout=10.0)
+    async with app:
+        task_id = await app.submit(flaky_api_call)
+        result = await app.wait_for_result(task_id, timeout=10.0)
 
         print(f"Status: {result.status.value}")
         print(f"Retries: {result.retries}")
@@ -121,22 +130,22 @@ Higher priority tasks (lower number) execute first:
 
 ```python
 import asyncio
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 
 async def main():
-    executor = AsyncTaskExecutor(num_workers=1)  # Single worker
+    app = Flowrra.from_urls()
 
-    @executor.task()
+    @app.task()
     async def process_task(name: str):
         await asyncio.sleep(0.1)
         print(f"Processing: {name}")
         return name
 
-    async with executor:
+    async with app:
         # Submit tasks (high priority goes first)
-        await executor.submit(process_task, "Low priority", priority=100)
-        await executor.submit(process_task, "High priority", priority=1)
-        await executor.submit(process_task, "Medium priority", priority=50)
+        await app.submit(process_task, "Low priority", priority=100)
+        await app.submit(process_task, "High priority", priority=1)
+        await app.submit(process_task, "Medium priority", priority=50)
 
         await asyncio.sleep(1.0)  # Wait for completion
 
@@ -157,17 +166,17 @@ Process multiple tasks concurrently:
 
 ```python
 import asyncio
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 
 async def main():
-    executor = AsyncTaskExecutor(num_workers=5)
+    app = Flowrra.from_urls()
 
-    @executor.task()
+    @app.task()
     async def fetch_data(url: str):
         await asyncio.sleep(0.5)  # Simulate HTTP request
         return f"Data from {url}"
 
-    async with executor:
+    async with app:
         # Submit multiple tasks
         urls = [
             "https://api.example.com/users",
@@ -177,13 +186,13 @@ async def main():
 
         task_ids = []
         for url in urls:
-            task_id = await executor.submit(fetch_data, url)
+            task_id = await app.submit(fetch_data, url)
             task_ids.append(task_id)
 
         # Wait for all results
         results = []
         for task_id in task_ids:
-            result = await executor.wait_for_result(task_id, timeout=5.0)
+            result = await app.wait_for_result(task_id, timeout=5.0)
             results.append(result.result)
 
         print("All data fetched:")
@@ -194,29 +203,28 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
-### 6. Custom Backend
+### 6. Redis Backend for Production
 
-Use a custom backend for result storage:
+Use Redis backend and broker for distributed execution:
 
 ```python
 import asyncio
-from flowrra import AsyncTaskExecutor
-from flowrra.backends.memory import InMemoryBackend
+from flowrra import Flowrra
 
 async def main():
-    # Create custom backend
-    backend = InMemoryBackend()
+    # Use Redis for both broker and backend (requires Redis server running)
+    app = Flowrra.from_urls(
+        broker="redis://localhost:6379/0",   # Task queue
+        backend="redis://localhost:6379/1"   # Result storage
+    )
 
-    # Pass to executor
-    executor = AsyncTaskExecutor(num_workers=2, backend=backend)
-
-    @executor.task()
+    @app.task()
     async def my_task(x: int):
         return x * 2
 
-    async with executor:
-        task_id = await executor.submit(my_task, 21)
-        result = await executor.wait_for_result(task_id, timeout=2.0)
+    async with app:
+        task_id = await app.submit(my_task, 21)
+        result = await app.wait_for_result(task_id, timeout=2.0)
 
         print(f"Result: {result.result}")
 
@@ -224,23 +232,93 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+**Redis Connection String Options:**
+- Basic: `redis://localhost:6379/0`
+- With password: `redis://:password@localhost:6379/0`
+- SSL: `rediss://localhost:6379/0`
+- Unix socket: `unix:///tmp/redis.sock`
+
 ## Key Concepts
 
-### Task Decorator
+### Flowrra Application
+
+Create a unified application that handles both I/O-bound and CPU-bound tasks:
+
+**Approach 1: Using `from_urls()` (Simple)**
 
 ```python
-@executor.task(
+from flowrra import Flowrra
+
+# Simple in-memory configuration
+app = Flowrra.from_urls()
+
+# With Redis backend and broker
+app = Flowrra.from_urls(
+    broker="redis://localhost:6379/0",   # Task queue
+    backend="redis://localhost:6379/1"   # Result storage
+)
+```
+
+**Approach 2: Using `Config` (Advanced)**
+
+```python
+from flowrra import Flowrra, Config, BrokerConfig, BackendConfig, ExecutorConfig
+
+# Full configuration with all options
+config = Config(
+    broker=BrokerConfig(
+        url="redis://localhost:6379/0",
+        max_connections=50,
+        socket_timeout=5.0,
+        retry_on_timeout=True
+    ),
+    backend=BackendConfig(
+        url="redis://localhost:6379/1",
+        ttl=3600,  # Result expiration in seconds
+        max_connections=50,
+        socket_timeout=5.0
+    ),
+    executor=ExecutorConfig(
+        num_workers=10,        # Async workers for I/O tasks
+        cpu_workers=4,         # Process workers for CPU tasks
+        max_queue_size=1000,
+        max_retries=3,
+        retry_delay=1.0
+    )
+)
+
+app = Flowrra(config=config)
+```
+
+### Task Registration
+
+**I/O-bound tasks (async):**
+```python
+@app.task(
     name=None,           # Custom name (defaults to function name)
-    cpu_bound=False,     # True for CPU-intensive work
     max_retries=3,       # Retry attempts on failure
     retry_delay=1.0      # Seconds between retries
 )
+async def my_io_task():  # Must be async
+    pass
+```
+
+**CPU-bound tasks (sync):**
+```python
+@app.task(
+    cpu_bound=True,      # Run in separate process
+    name=None,           # Custom name (defaults to function name)
+    max_retries=3,       # Retry attempts on failure
+    retry_delay=1.0      # Seconds between retries
+)
+def my_cpu_task():       # Must be sync (not async)
+    pass
 ```
 
 ### Task Submission
 
 ```python
-task_id = await executor.submit(
+task_id = await app.submit(
     task_func,           # The task function
     *args,               # Positional arguments
     priority=0,          # Lower number = higher priority
@@ -256,35 +334,24 @@ task_id = await executor.submit(
 - **FAILED**: Failed after all retries
 - **RETRYING**: Failed, will retry
 
-### Executor Configuration
-
-```python
-executor = AsyncTaskExecutor(
-    num_workers=4,          # I/O worker coroutines
-    cpu_workers=None,       # CPU worker processes (defaults to CPU count)
-    max_queue_size=1000,    # Maximum pending tasks
-    backend=None            # Result storage backend
-)
-```
-
 ## Common Patterns
 
 ### Error Handling
 
 ```python
-from flowrra import AsyncTaskExecutor
+from flowrra import Flowrra
 from flowrra.task import TaskStatus
 
 async def main():
-    executor = AsyncTaskExecutor(num_workers=2)
+    app = Flowrra.from_urls()
 
-    @executor.task(max_retries=2)
+    @app.task(max_retries=2)
     async def risky_task():
         raise ValueError("Something went wrong")
 
-    async with executor:
-        task_id = await executor.submit(risky_task)
-        result = await executor.wait_for_result(task_id, timeout=5.0)
+    async with app:
+        task_id = await app.submit(risky_task)
+        result = await app.wait_for_result(task_id, timeout=5.0)
 
         if result.status == TaskStatus.FAILED:
             print(f"Task failed: {result.error}")
@@ -294,29 +361,34 @@ async def main():
 
 ### Mixed I/O and CPU Tasks
 
+Use a single Flowrra app for both I/O-bound and CPU-bound tasks:
+
 ```python
+from flowrra import Flowrra
+
 async def main():
-    executor = AsyncTaskExecutor(num_workers=4, cpu_workers=2)
+    # Single app handles both I/O and CPU tasks
+    app = Flowrra.from_urls(backend="redis://localhost:6379/0")
 
     # I/O-bound (async)
-    @executor.task()
+    @app.task()
     async def fetch_data(url: str):
         await asyncio.sleep(1)
         return f"data from {url}"
 
     # CPU-bound (sync)
-    @executor.task(cpu_bound=True)
+    @app.task(cpu_bound=True)
     def process_data(data: str):
         return data.upper()
 
-    async with executor:
+    async with app:
         # Fetch data (I/O)
-        fetch_id = await executor.submit(fetch_data, "api.example.com")
-        fetch_result = await executor.wait_for_result(fetch_id)
+        fetch_id = await app.submit(fetch_data, "api.example.com")
+        fetch_result = await app.wait_for_result(fetch_id)
 
         # Process data (CPU)
-        process_id = await executor.submit(process_data, fetch_result.result)
-        process_result = await executor.wait_for_result(process_id)
+        process_id = await app.submit(process_data, fetch_result.result)
+        process_result = await app.wait_for_result(process_id)
 
         print(process_result.result)
 ```
@@ -326,7 +398,8 @@ async def main():
 - **Read the full docs**: Check out `DEVELOPMENT.md` for detailed info
 - **Explore examples**: See `examples/` directory for more patterns
 - **Run tests**: Try `pytest tests/ -v` to see the test suite
-- **Implement Redis backend**: Extend `BaseResultBackend` for distributed tasks
+- **Use Redis backend**: Install `pip install flowrra[redis]` for distributed task execution
+- **Custom backends**: Extend `BaseResultBackend` for specialized storage needs
 
 ## Getting Help
 

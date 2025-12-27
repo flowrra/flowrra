@@ -46,7 +46,6 @@ class TestInMemoryBackend:
         """Test updating an existing result."""
         backend = InMemoryBackend()
 
-        # Store initial result
         result1 = TaskResult(
             task_id="task-456",
             status=TaskStatus.PENDING,
@@ -54,7 +53,6 @@ class TestInMemoryBackend:
         )
         await backend.store("task-456", result1)
 
-        # Update to running
         result2 = TaskResult(
             task_id="task-456",
             status=TaskStatus.RUNNING,
@@ -62,7 +60,6 @@ class TestInMemoryBackend:
         )
         await backend.store("task-456", result2)
 
-        # Update to success
         result3 = TaskResult(
             task_id="task-456",
             status=TaskStatus.SUCCESS,
@@ -70,7 +67,6 @@ class TestInMemoryBackend:
         )
         await backend.store("task-456", result3)
 
-        # Verify final state
         retrieved = await backend.get("task-456")
         assert retrieved.status == TaskStatus.SUCCESS
         assert retrieved.result == "done"
@@ -97,7 +93,6 @@ class TestInMemoryBackend:
         """Test wait_for a task that completes while waiting."""
         backend = InMemoryBackend()
 
-        # Store pending result
         pending = TaskResult(
             task_id="task-abc",
             status=TaskStatus.PENDING,

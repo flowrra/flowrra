@@ -26,7 +26,8 @@ class InMemoryBackend(BaseResultBackend):
     async def store(self, task_id: str, result: TaskResult) -> None:
         self._results[task_id] = result
 
-        if task_id in self._events:
+        # Only set the event when task is complete (SUCCESS or FAILED)
+        if task_id in self._events and result.is_complete:
             self._events[task_id].set()
     
     async def get(self, task_id: str) -> TaskResult | None:
