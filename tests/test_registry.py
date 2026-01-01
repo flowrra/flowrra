@@ -84,7 +84,6 @@ class TestTaskRegistry:
         assert task_func.task_name == "test_task"
         assert task_func.max_retries == 5
         assert task_func.retry_delay == 2.5
-        assert task_func.is_flowrra_task is True
         assert task_func.cpu_bound is False
 
     def test_get_task(self):

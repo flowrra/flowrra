@@ -36,7 +36,6 @@ class TaskRegistry:
                 func.cpu_bound = cpu_bound
                 func.max_retries = max_retries
                 func.retry_delay = retry_delay
-                func.is_flowrra_task = True
                 self._tasks[task_name] = func
                 return func
             else:
@@ -53,7 +52,6 @@ class TaskRegistry:
                 wrapper.cpu_bound = cpu_bound
                 wrapper.max_retries = max_retries
                 wrapper.retry_delay = retry_delay
-                wrapper.is_flowrra_task = True
 
                 self._tasks[task_name] = wrapper
 
