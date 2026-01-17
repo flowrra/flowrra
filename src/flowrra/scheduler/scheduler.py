@@ -457,50 +457,6 @@ class Scheduler:
 
             return await self.io_executor.submit(task_func, *args, **kwargs)
 
-    # async def _execute_scheduled_task(self, scheduled_task: ScheduledTask, now: datetime) -> None:
-    #     """Execute a scheduled task and update its next run time.
-
-    #     Args:
-    #         scheduled_task: Task to execute
-    #         now: Current time
-    #     """
-    #     task_func = self.registry.get(scheduled_task.task_name)
-    #     if task_func is None:
-    #         logger.warning(f"Task '{scheduled_task.task_name}' not found in registry, skipping")
-    #         return
-
-    #     # Priority 1: Use callback if set (backward compatibility)
-    #     if self._submit_callback:
-    #         try:
-    #             await self._submit_callback(task_func, *scheduled_task.args, **scheduled_task.kwargs)
-    #         except Exception as e:
-    #             logger.error(f"Error submitting task {scheduled_task.task_name} via callback: {e}")
-    #     # Priority 2: Use automatic executor routing
-    #     elif self.io_executor is not None or self.cpu_executor is not None:
-    #         try:
-    #             task_id = await self._submit_task_to_executor(
-    #                 task_func,
-    #                 *scheduled_task.args,
-    #                 **scheduled_task.kwargs
-    #             )
-    #             if task_id:
-    #                 logger.info(f"Scheduled task {scheduled_task.task_name} submitted with ID {task_id}")
-    #         except Exception as e:
-    #             logger.error(f"Error submitting task {scheduled_task.task_name} to executor: {e}")
-    #     else:
-    #         logger.warning(f"No executor or callback configured for task {scheduled_task.task_name}")
-    #         return
-
-    #     next_run = self._calculate_next_run(scheduled_task, now)
-
-    #     if next_run:
-    #         await self.backend.update_run_times(scheduled_task.id, now, next_run)
-    #     else:
-    #         # One-time task, disable after execution
-    #         scheduled_task.enabled = False
-    #         scheduled_task.last_run_at = now
-    #         await self.backend.update(scheduled_task)
-
     async def _execute_scheduled_task(self, scheduled_task: ScheduledTask, now: datetime) -> None:
         """Execute a scheduled task and update its next run time safely."""
 
