@@ -80,10 +80,12 @@ Schedule tasks to run at specific times or intervals:
 .. code-block:: python
 
    from flowrra import Flowrra
+   import asyncio
 
-   app = Flowrra.from_urls(
-       scheduler_url="sqlite:///scheduler.db"
-   )
+   app = Flowrra.from_urls()
+
+   # Create scheduler (automatically integrated with app)
+   scheduler = app.create_scheduler()
 
    @app.task()
    async def cleanup_old_data():
@@ -92,19 +94,25 @@ Schedule tasks to run at specific times or intervals:
        return {"cleaned": 100}
 
    async def main():
-       async with app:
+       async with app:  # Automatically starts scheduler
            # Schedule task to run every hour
-           await app.schedule_interval(
-               "cleanup_old_data",
+           await scheduler.schedule_interval(
+               task_name="cleanup_old_data",
                interval=3600,  # seconds
-               task_name="cleanup_old_data"
+               description="Hourly cleanup"
            )
-           
-           # Schedule with cron expression
-           await app.schedule_cron(
-               "0 0 * * *",  # Run daily at midnight
-               task_name="cleanup_old_data"
+
+           # Schedule with cron expression (daily at midnight)
+           await scheduler.schedule_cron(
+               task_name="cleanup_old_data",
+               cron="0 0 * * *",
+               description="Daily cleanup"
            )
+
+           # Keep running to execute scheduled tasks
+           await asyncio.Event().wait()
+
+   asyncio.run(main())
 
 
 Next Steps
