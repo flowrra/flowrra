@@ -2,7 +2,11 @@
 
 Lightweight async task queue built on pure Python asyncio. A Celery-inspired background job executor with zero dependencies, featuring retries, priority queues, and pluggable backends.
 
+[![PyPI version](https://badge.fury.io/py/flowrra.svg)](https://pypi.org/project/flowrra/)
+[![Python Version](https://img.shields.io/pypi/pyversions/flowrra)](https://pypi.org/project/flowrra/)
 [![Documentation](https://readthedocs.org/projects/flowrra/badge/?version=latest)](https://flowrra.readthedocs.io/en/latest/)
+[![Downloads](https://img.shields.io/pypi/dm/flowrra)](https://pypi.org/project/flowrra/)
+[![License](https://img.shields.io/pypi/l/flowrra)](https://github.com/flowrra/flowrra/blob/main/LICENSE)
 
 📚 **[Read the Documentation](https://flowrra.readthedocs.io/en/latest/)** - Complete guides, API reference, and tutorials
 
@@ -1058,10 +1062,10 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## Links
 
+- **PyPI**: https://pypi.org/project/flowrra/
 - **Documentation**: https://flowrra.readthedocs.io/en/latest/
 - **GitHub**: https://github.com/flowrra/flowrra
 - **Issues**: https://github.com/flowrra/flowrra/issues
-- **PyPI**: https://pypi.org/project/flowrra/ (when published)
 
 ## Acknowledgments
 
