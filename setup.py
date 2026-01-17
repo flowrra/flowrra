@@ -10,7 +10,7 @@ long_description = readme_file.read_text(encoding="utf-8") if readme_file.exists
 setup(
     name="flowrra",
     version="0.1.0",
-    description="Async task executor built on asyncio - a lightweight Celery alternative",
+    description="A lightweight async task executor built on asyncio",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="Ahmad Ameen",

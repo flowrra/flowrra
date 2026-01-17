@@ -50,15 +50,36 @@ postgresql = [
 mysql = [
     "aiomysql>=0.2.0",
 ]
+ui-fastapi = [
+    "fastapi>=0.100.0",
+    "jinja2>=3.1.0",
+]
+ui-flask = [
+    "flask>=2.3.0",
+    "jinja2>=3.1.0",
+]
+ui-django = [
+    "django>=4.2.0",
+]
+ui = [
+    "fastapi>=0.100.0",
+    "flask>=2.3.0",
+    "django>=4.2.0",
+    "jinja2>=3.1.0",
+]
 all = [
     "redis[hiredis]>=5.0.0",
     "asyncpg>=0.29.0",
     "aiomysql>=0.2.0",
+    "fastapi>=0.100.0",
+    "flask>=2.3.0",
+    "django>=4.2.0",
+    "jinja2>=3.1.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/flowrra/flowrra"
-Documentation = "https://github.com/flowrra/flowrra#readme"
+Documentation = "https://flowrra.readthedocs.io/en/latest/"
 Repository = "https://github.com/flowrra/flowrra"
 Issues = "https://github.com/flowrra/flowrra/issues"
 
