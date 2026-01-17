@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Flowrra{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Dashboard</h2>
+    <p class="subtitle">System Overview</p>
+</div>
+
+<!-- System Stats Grid -->
+<div class="stats-grid">
+    <!-- App Status -->
+    <div class="stat-card">
+        <div class="stat-icon">🚀</div>
+        <div class="stat-content">
+            <h3>Application</h3>
+            <p class="stat-value {% if stats.app.running %}status-success{% else %}status-error{% endif %}">
+                {% if stats.app.running %}Running{% else %}Stopped{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- IO Executor -->
+    <div class="stat-card">
+        <div class="stat-icon">⚡</div>
+        <div class="stat-content">
+            <h3>IO Executor</h3>
+            {% if stats.executors.io %}
+            <p class="stat-value">{{ stats.executors.io.workers }} workers</p>
+            <p class="stat-detail {% if stats.executors.io.running %}status-success{% else %}status-error{% endif %}">
+                {% if stats.executors.io.running %}Running{% else %}Stopped{% endif %}
+            </p>
+            {% else %}
+            <p class="stat-value status-gray">Not configured</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- CPU Executor -->
+    <div class="stat-card">
+        <div class="stat-icon">🔧</div>
+        <div class="stat-content">
+            <h3>CPU Executor</h3>
+            {% if stats.executors.cpu %}
+            <p class="stat-value">{{ stats.executors.cpu.workers }} workers</p>
+            <p class="stat-detail {% if stats.executors.cpu.running %}status-success{% else %}status-error{% endif %}">
+                {% if stats.executors.cpu.running %}Running{% else %}Stopped{% endif %}
+            </p>
+            {% else %}
+            <p class="stat-value status-gray">Not configured</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Registered Tasks -->
+    <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-content">
+            <h3>Registered Tasks</h3>
+            <p class="stat-value">{{ stats.tasks.registered }}</p>
+            <a href="/tasks" class="stat-link">View all →</a>
+        </div>
+    </div>
+
+    <!-- Pending Tasks -->
+    <div class="stat-card">
+        <div class="stat-icon">⏳</div>
+        <div class="stat-content">
+            <h3>Pending Tasks</h3>
+            <p class="stat-value status-yellow">{{ stats.tasks.pending }}</p>
+            <a href="/tasks?status=pending" class="stat-link">View →</a>
+        </div>
+    </div>
+
+    <!-- Running Tasks -->
+    <div class="stat-card">
+        <div class="stat-icon">▶️</div>
+        <div class="stat-content">
+            <h3>Running Tasks</h3>
+            <p class="stat-value status-blue">{{ stats.tasks.running }}</p>
+            <a href="/tasks?status=running" class="stat-link">View →</a>
+        </div>
+    </div>
+
+    <!-- Scheduler -->
+    <div class="stat-card">
+        <div class="stat-icon">⏰</div>
+        <div class="stat-content">
+            <h3>Scheduler</h3>
+            {% if stats.scheduler %}
+            <p class="stat-value">{{ total_schedules }} schedules</p>
+            <p class="stat-detail {% if stats.scheduler.running %}status-success{% else %}status-error{% endif %}">
+                {% if stats.scheduler.running %}Running{% else %}Stopped{% endif %}
+            </p>
+            {% else %}
+            <p class="stat-value status-gray">Not configured</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Health Status -->
+    <div class="stat-card">
+        <div class="stat-icon">❤️</div>
+        <div class="stat-content">
+            <h3>Health</h3>
+            <p class="stat-value status-success">Healthy</p>
+            <a href="/api/health" target="_blank" class="stat-link">API →</a>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Failed Tasks -->
+{% if recent_failed_tasks %}
+<div class="section">
+    <div class="section-header">
+        <h3>Recent Failed Tasks</h3>
+        <a href="/tasks?status=failed" class="btn-link">View all →</a>
+    </div>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Task ID</th>
+                    <th>Task Name</th>
+                    <th>Failed At</th>
+                    <th>Error</th>
+                    <th>Retries</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in recent_failed_tasks %}
+                <tr>
+                    <td><code>{{ task.id|slice:":8" }}</code></td>
+                    <td><strong>{{ task.name }}</strong></td>
+                    <td>{{ task.completed_at |default:"Never" }}</td>
+                    <td class="error-message">{% if task.error %}{{ task.error|slice:":100" }}{% else %}N/A{% endif %}</td>
+                    <td>{{ task.retry_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Active Schedules -->
+{% if schedules %}
+<div class="section">
+    <div class="section-header">
+        <h3>Active Schedules</h3>
+        <a href="/schedules" class="btn-link">View all →</a>
+    </div>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Task Name</th>
+                    <th>Schedule</th>
+                    <th>Next Run</th>
+                    <th>Last Run</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for schedule in schedules %}
+                <tr>
+                    <td><strong>{{ schedule.task_name }}</strong></td>
+                    <td><code>{{ schedule.schedule }}</code></td>
+                    <td>{{ schedule.next_run_at |default:"Never" }}</td>
+                    <td>{{ schedule.last_run_at |default:"Never" }}</td>
+                    <td>
+                        <span class="badge {% if schedule.enabled %}badge-success{% else %}badge-gray{% endif %}">
+                            {% if schedule.enabled %}Enabled{% else %}Disabled{% endif %}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Quick Actions -->
+<div class="section">
+    <h3>Quick Actions</h3>
+    <div class="button-group">
+        <a href="/tasks" class="btn btn-primary">View All Tasks</a>
+        <a href="/schedules" class="btn btn-secondary">Manage Schedules</a>
+        <a href="/api/stats" target="_blank" class="btn btn-secondary">API Stats</a>
+    </div>
+</div>
+{% endblock %}

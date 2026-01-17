@@ -109,10 +109,42 @@ class ExecutorConfig:
 
 
 @dataclass
+class SchedulerConfig:
+    """Scheduler configuration for persistent task scheduling.
+
+    Args:
+        database_url: Database URL for scheduler storage
+            - SQLite: "sqlite:///path/to/schedule.db" (default: None for .flowrra_schedule.db)
+            - PostgreSQL: "postgresql://user:pass@host/db"
+            - MySQL: "mysql://user:pass@host/db"
+        check_interval: How often to check for due tasks (seconds)
+        enabled: Whether scheduler is enabled
+    """
+    database_url: str | None = None
+    check_interval: float = 60.0
+    enabled: bool = False
+
+    def __post_init__(self):
+        """Validate scheduler configuration."""
+        if self.check_interval <= 0:
+            raise ValueError("check_interval must be positive")
+
+    def create_backend(self) -> "BaseSchedulerBackend":
+        """Create scheduler backend from configuration.
+
+        Returns:
+            Scheduler backend instance
+        """
+        from flowrra.scheduler.backends import get_scheduler_backend
+
+        return get_scheduler_backend(self.database_url)
+
+
+@dataclass
 class Config:
     """Main Flowrra configuration aggregating component configs.
 
-    This class brings together broker, backend, and executor configurations
+    This class brings together broker, backend, executor, and scheduler configurations
     into a single, structured configuration object. All components are optional
     with sensible defaults.
 
@@ -120,10 +152,12 @@ class Config:
         broker: Broker configuration for task queueing (optional, uses asyncio.PriorityQueue if None)
         backend: Backend configuration for result storage (optional)
         executor: Executor configuration (optional, defaults to ExecutorConfig())
+        scheduler: Scheduler configuration (optional, disabled by default)
     """
     broker: BrokerConfig | None = None
     backend: BackendConfig | None = None
     executor: ExecutorConfig = field(default_factory=ExecutorConfig)
+    scheduler: SchedulerConfig | None = None
 
     def __post_init__(self):
         """Ensure executor config exists."""
@@ -155,6 +189,16 @@ class Config:
             return self.backend.create_backend()
         else:
             return get_backend(None)
+
+    def create_scheduler_backend(self):
+        """Create scheduler backend from configuration.
+
+        Returns:
+            Scheduler backend instance if configured, None otherwise
+        """
+        if self.scheduler is not None and self.scheduler.enabled:
+            return self.scheduler.create_backend()
+        return None
 
     @classmethod
     def from_env(cls, prefix: str = "FLOWRRA_") -> "Config":
@@ -202,6 +246,12 @@ class Config:
             "retry_delay": ("executor_retry_delay", float, 1.0),
         }
 
+        scheduler_map = {
+            "database_url": ("scheduler_database_url", str, None),
+            "check_interval": ("scheduler_check_interval", float, 60.0),
+            "enabled": ("scheduler_enabled", bool, False),
+        }
+
         def build_config(map_def):
             kwargs = {}
             for field, (env_name, type_cast, default) in map_def.items():
@@ -218,4 +268,7 @@ class Config:
         executor_kwargs = build_config(executor_map)
         executor = ExecutorConfig(**executor_kwargs)
 
-        return cls(broker=broker, backend=backend, executor=executor)
+        scheduler_kwargs = build_config(scheduler_map)
+        scheduler = SchedulerConfig(**scheduler_kwargs) if scheduler_kwargs["enabled"] else None
+
+        return cls(broker=broker, backend=backend, executor=executor, scheduler=scheduler)

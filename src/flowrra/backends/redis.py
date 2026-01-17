@@ -5,7 +5,7 @@ import json
 from typing import Any
 
 from flowrra.backends.base import BaseResultBackend
-from flowrra.task import TaskResult
+from flowrra.task import TaskResult, TaskStatus
 from flowrra.exceptions import BackendError
 
 try:
@@ -194,6 +194,64 @@ class RedisBackend(BaseResultBackend):
 
         except Exception as e:
             raise BackendError(f"Failed to clear task results: {e}") from e
+
+    async def list_by_status(
+        self,
+        status: TaskStatus,
+        limit: int | None = None,
+        offset: int = 0
+    ) -> list[TaskResult]:
+        """List tasks by status with optional pagination."""
+        import logging
+        from datetime import datetime
+
+        logger = logging.getLogger("flowrra")
+
+        await self._ensure_connected()
+
+        try:
+            # Collect all task keys
+            pattern = "flowrra:task:*"
+            keys = []
+            async for key in self._redis.scan_iter(match=pattern, count=100):
+                keys.append(key)
+
+            if not keys:
+                return []
+
+            # Batch fetch all task data
+            raw_data = await self._redis.mget(keys)
+
+            # Parse and filter by status
+            matching_tasks = []
+            for raw_json in raw_data:
+                if raw_json is None:
+                    continue
+
+                try:
+                    task_data = json.loads(raw_json)
+                    result = TaskResult.from_dict(task_data)
+
+                    if result.status == status:
+                        matching_tasks.append(result)
+                except (json.JSONDecodeError, KeyError, ValueError) as e:
+                    logger.warning(f"Failed to parse task result: {e}")
+                    continue
+
+            # Sort by submitted_at DESC (newest first)
+            matching_tasks.sort(
+                key=lambda r: r.submitted_at if r.submitted_at else datetime.min,
+                reverse=True
+            )
+
+            # Apply pagination
+            start = offset
+            end = offset + limit if limit is not None else None
+
+            return matching_tasks[start:end]
+
+        except Exception as e:
+            raise BackendError(f"Failed to list tasks by status: {e}") from e
 
     async def close(self) -> None:
         if self._redis:

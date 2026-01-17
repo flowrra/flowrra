@@ -1,9 +1,10 @@
 """In-memory result backend for single-process use."""
 
 import asyncio
+from datetime import datetime
 
 from flowrra.backends.base import BaseResultBackend
-from flowrra.task import TaskResult
+from flowrra.task import TaskResult, TaskStatus
 
 
 class InMemoryBackend(BaseResultBackend):
@@ -57,6 +58,32 @@ class InMemoryBackend(BaseResultBackend):
         self._results.clear()
         self._events.clear()
         return count
-    
+
+    async def list_by_status(
+        self,
+        status: TaskStatus,
+        limit: int | None = None,
+        offset: int = 0
+    ) -> list[TaskResult]:
+        """List tasks by status with optional pagination."""
+        # Filter by status
+        matching_tasks = [
+            result for result in self._results.values()
+            if result.status == status
+        ]
+
+        # Sort by submitted_at DESC (newest first)
+        # Tasks without submitted_at go to the end
+        matching_tasks.sort(
+            key=lambda r: r.submitted_at if r.submitted_at else datetime.min,
+            reverse=True
+        )
+
+        # Apply pagination
+        start = offset
+        end = offset + limit if limit is not None else None
+
+        return matching_tasks[start:end]
+
     def __len__(self) -> int:
         return len(self._results)

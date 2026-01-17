@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Tasks - Flowrra{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Tasks</h2>
+    <p class="subtitle">Task Execution History</p>
+</div>
+
+<!-- Filter Tabs -->
+<div class="tabs">
+    <a href="/tasks" class="tab {% if not status_filter %}active{% endif %}">All</a>
+    <a href="/tasks?status=pending" class="tab {% if status_filter == 'pending' %}active{% endif %}">
+        <span class="badge badge-yellow">Pending</span>
+    </a>
+    <a href="/tasks?status=running" class="tab {% if status_filter == 'running' %}active{% endif %}">
+        <span class="badge badge-blue">Running</span>
+    </a>
+    <a href="/tasks?status=success" class="tab {% if status_filter == 'success' %}active{% endif %}">
+        <span class="badge badge-success">Success</span>
+    </a>
+    <a href="/tasks?status=failed" class="tab {% if status_filter == 'failed' %}active{% endif %}">
+        <span class="badge badge-error">Failed</span>
+    </a>
+</div>
+
+<!-- Registered Tasks Section -->
+<div class="section">
+    <h3>Registered Tasks</h3>
+    <p class="text-muted">{{ registered_tasks | length }} task(s) registered</p>
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Task Name</th>
+                    <th>Type</th>
+                    <th>Max Retries</th>
+                    <th>Retry Delay</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in registered_tasks %}
+                <tr>
+                    <td><strong>{{ task.name }}</strong></td>
+                    <td>
+                        {% if task.cpu_bound %}
+                            <span class="badge badge-purple">CPU-bound</span>
+                        {% else %}
+                            <span class="badge badge-blue">IO-bound</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ task.max_retries }}</td>
+                    <td>{{ task.retry_delay }}s</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Task Execution History -->
+<div class="section">
+    <div class="section-header">
+        <h3>
+            Execution History
+            {% if status_filter %}
+                <span class="text-muted">({{ status_filter }})</span>
+            {% endif %}
+        </h3>
+        <p class="text-muted">{{ tasks | length }} task(s) found</p>
+    </div>
+
+    {% if tasks %}
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Task ID</th>
+                    <th>Task Name</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Started</th>
+                    <th>Completed</th>
+                    <th>Duration</th>
+                    <th>Retries</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for task in tasks %}
+                <tr>
+                    <td><code class="task-id">{{ task.id|slice:":8" }}</code></td>
+                    <td><strong>{{ task.name }}</strong></td>
+                    <td>
+                        <span class="badge badge-{{ task.status  }}">
+                            {{ task.status }}
+                        </span>
+                    </td>
+                    <td>{{ task.created_at |default:"Never" }}</td>
+                    <td>{{ task.started_at |default:"Never" }}</td>
+                    <td>{{ task.completed_at |default:"Never" }}</td>
+                    <td>
+                        {% if task.started_at and task.completed_at %}
+                            {{ task.duration }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td>{{ task.retry_count }}</td>
+                </tr>
+                {% if task.error %}
+                <tr class="error-row">
+                    <td colspan="8">
+                        <strong>Error:</strong>
+                        <pre class="error-message">{{ task.error }}</pre>
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No tasks found{% if status_filter %} with status "{{ status_filter }}"{% endif %}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- API Reference -->
+<div class="section">
+    <h3>API Endpoints</h3>
+    <div class="api-docs">
+        <div class="api-endpoint">
+            <code class="method-get">GET</code>
+            <code>/api/tasks</code>
+            <span class="text-muted">- List all registered tasks</span>
+        </div>
+        <div class="api-endpoint">
+            <code class="method-get">GET</code>
+            <code>/api/tasks/{name}</code>
+            <span class="text-muted">- Get task info</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

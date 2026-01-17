@@ -1,9 +1,12 @@
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 
 from flowrra.config import Config, BrokerConfig, BackendConfig
 from flowrra.executors.io_executor import IOExecutor
 from flowrra.executors.cpu_executor import CPUExecutor
 from flowrra.task import TaskResult
+
+if TYPE_CHECKING:
+    from flowrra.scheduler import Scheduler
 
 
 class Flowrra:
@@ -43,6 +46,7 @@ class Flowrra:
         self._config = config
         self._io_executor: IOExecutor | None = None
         self._cpu_executor: CPUExecutor | None = None
+        self._scheduler: "Scheduler | None" = None
         self._running = False
 
     def _init_executor(self, cpu_bound: bool):
@@ -184,6 +188,77 @@ class Flowrra:
         if self._cpu_executor:
             await self._cpu_executor.start()
 
+        if self._scheduler:
+            await self._scheduler.start()
+
+    def create_scheduler(
+        self,
+        backend: "BaseSchedulerBackend | str | None" = None,
+        check_interval: float = 60.0
+    ) -> "Scheduler":
+        """Create a scheduler integrated with this app's executors.
+
+        The scheduler is automatically registered with the app and will start/stop
+        with the app lifecycle. Access it via app.scheduler property or use
+        FlowrraManager for comprehensive schedule management.
+
+        Args:
+            backend: Scheduler backend (URL string or instance)
+                - None: Uses default SQLite backend (.flowrra_schedule.db)
+                - String: Database URL (e.g., "postgresql://localhost/db")
+                - Instance: Custom BaseSchedulerBackend instance
+            check_interval: How often to check for due tasks (seconds)
+
+        Returns:
+            Scheduler instance configured with this app's executors
+
+        Example:
+            app = Flowrra.from_urls()
+
+            @app.task()
+            async def send_report():
+                return "Report sent"
+
+            # Create integrated scheduler (auto-registered)
+            scheduler = app.create_scheduler()
+
+            # Schedule tasks
+            await scheduler.schedule_cron(
+                task_name="send_report",
+                cron="0 9 * * *"
+            )
+
+            # Start app (automatically starts scheduler too)
+            await app.start()
+
+            # Or use FlowrraManager for comprehensive management
+            from flowrra.management import FlowrraManager
+            manager = FlowrraManager(app)
+            schedules = await manager.list_schedules()
+        """
+        from flowrra.scheduler import Scheduler
+        from flowrra.scheduler.backends import get_scheduler_backend
+
+        if isinstance(backend, str):
+            scheduler_backend = get_scheduler_backend(backend)
+        elif backend is None:
+            scheduler_backend = get_scheduler_backend()
+        else:
+            scheduler_backend = backend
+
+        scheduler = Scheduler(
+            backend=scheduler_backend,
+            registry=self.registry,
+            check_interval=check_interval,
+            io_executor=self._io_executor,
+            cpu_executor=self._cpu_executor
+        )
+
+        # Store reference for management access
+        self._scheduler = scheduler
+
+        return scheduler
+
     async def stop(self, wait: bool = True, timeout: float | None = 30.0):
         """Stop the Flowrra application and all executors.
 
@@ -202,6 +277,9 @@ class Flowrra:
         if self._cpu_executor:
             await self._cpu_executor.stop(wait=wait, timeout=timeout)
 
+        if self._scheduler:
+            await self._scheduler.stop()
+
     async def __aenter__(self):
         await self.start()
         return self
@@ -212,3 +290,34 @@ class Flowrra:
     @property
     def is_running(self) -> bool:
         return self._running
+
+    @property
+    def registry(self):
+        """Get the task registry from the IO executor.
+
+        Returns:
+            TaskRegistry instance
+
+        Note:
+            Both IOExecutor and CPUExecutor share the same registry instance
+        """
+        if self._io_executor:
+            return self._io_executor.registry
+        elif self._cpu_executor:
+            return self._cpu_executor.registry
+        else:
+            self._init_executor(cpu_bound=False)
+            return self._io_executor.registry
+
+    @property
+    def scheduler(self) -> "Scheduler | None":
+        """Get the registered scheduler instance.
+
+        Returns:
+            Scheduler instance if created via create_scheduler(), None otherwise
+
+        Note:
+            The scheduler is optional. It only exists if create_scheduler()
+            was called.
+        """
+        return self._scheduler

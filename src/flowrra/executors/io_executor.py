@@ -50,6 +50,10 @@ class IOExecutor(BaseTaskExecutor):
         self._num_workers = num_workers
         self._config = config
 
+    def is_broker(self) -> bool:
+        """Check if executor uses a broker for task queueing."""
+        return self.broker is not None
+
     def task(self, name: str | None = None, max_retries: int = 3, retry_delay: float = 1.0):
         """Register an async I/O-bound task.
 
@@ -81,7 +85,8 @@ class IOExecutor(BaseTaskExecutor):
             retries=task.current_retry,
         )
 
-        await self.results.store(task.id, result)
+        # await self.results.store(task.id, result)
+        await self._store_and_emit(result)
         logger.info(f"Worker-{worker_id} running {task.name}[{task.id[:8]}]")
 
         try:
@@ -90,14 +95,16 @@ class IOExecutor(BaseTaskExecutor):
             result.status = TaskStatus.SUCCESS
             result.result = output
             result.finished_at = datetime.now()
-            await self.results.store(task.id, result)
+            # await self.results.store(task.id, result)
+            await self._store_and_emit(result)
             logger.info(f"Task {task.name}[{task.id[:8]}] succeeded")
         except Exception as e:
             if task.current_retry < task.max_retries:
                 task.current_retry += 1
                 result.status = TaskStatus.RETRYING
                 result.retries = task.current_retry
-                await self.results.store(task.id, result)
+                # await self.results.store(task.id, result)
+                await self._store_and_emit(result)
 
                 logger.warning(
                     f"Task {task.name}[{task.id[:8]}] failed, "
@@ -114,7 +121,8 @@ class IOExecutor(BaseTaskExecutor):
                 result.status = TaskStatus.FAILED
                 result.error = str(e)
                 result.finished_at = datetime.now()
-                await self.results.store(task.id, result)
+                # await self.results.store(task.id, result)
+                await self._store_and_emit(result)
 
                 logger.error(f"Task {task.name}[{task.id[:8]}] failed: {e}")
 

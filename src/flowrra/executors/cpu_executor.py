@@ -112,7 +112,8 @@ class CPUExecutor(BaseTaskExecutor):
             retries=task.current_retry,
         )
 
-        await self.results.store(task.id, result)
+        # await self.results.store(task.id, result)
+        await self._store_and_emit(result)
         logger.info(f"Worker-{worker_id} running {task.name}[{task.id[:8]}] in process pool")
 
         try:
@@ -127,14 +128,16 @@ class CPUExecutor(BaseTaskExecutor):
             result.status = TaskStatus.SUCCESS
             result.result = output
             result.finished_at = datetime.now()
-            await self.results.store(task.id, result)
+            # await self.results.store(task.id, result)
+            await self._store_and_emit(result)
             logger.info(f"Task {task.name}[{task.id[:8]}] succeeded")
         except Exception as e:
             if task.current_retry < task.max_retries:
                 task.current_retry += 1
                 result.status = TaskStatus.RETRYING
                 result.retries = task.current_retry
-                await self.results.store(task.id, result)
+                # await self.results.store(task.id, result)
+                await self._store_and_emit(result)
 
                 logger.warning(
                     f"Task {task.name}[{task.id[:8]}] failed, "
@@ -147,7 +150,8 @@ class CPUExecutor(BaseTaskExecutor):
                 result.status = TaskStatus.FAILED
                 result.error = str(e)
                 result.finished_at = datetime.now()
-                await self.results.store(task.id, result)
+                # await self.results.store(task.id, result)
+                await self._store_and_emit(result)
 
                 logger.error(f"Task {task.name}[{task.id[:8]}] failed: {e}")
 
