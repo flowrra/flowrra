@@ -15,11 +15,19 @@ class TaskStatus(Enum):
 class TaskResult:
     task_id: str
     status: TaskStatus
+    task_name: str | None = None
     result: Any = None
     error: str | None = None
+    submitted_at: datetime | None = None
     started_at: datetime | None = None
     finished_at: datetime | None = None
     retries: int = 0
+    args: tuple = ()
+    kwargs: dict = None
+
+    def __post_init__(self):
+        if self.kwargs is None:
+            self.kwargs = {}
 
     @property
     def is_complete(self) -> bool:
@@ -34,11 +42,15 @@ class TaskResult:
         return {
             "task_id": self.task_id,
             "status": self.status.value,
+            "task_name": self.task_name,
             "result": self.result,
             "error": self.error,
+            "submitted_at": self.submitted_at.isoformat() if self.submitted_at else None,
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "finished_at": self.finished_at.isoformat() if self.finished_at else None,
             "retries": self.retries,
+            "args": self.args,
+            "kwargs": self.kwargs,
         }
     
     @classmethod
@@ -46,11 +58,15 @@ class TaskResult:
         return cls(
             task_id=data["task_id"],
             status=TaskStatus(data["status"]),
-            result=data["result"],
-            error=data["error"],
-            started_at=datetime.fromisoformat(data["started_at"]) if data["started_at"] else None,
-            finished_at=datetime.fromisoformat(data["finished_at"]) if data["finished_at"] else None,
-            retries=data["retries"],
+            task_name=data.get("task_name"),
+            result=data.get("result"),
+            error=data.get("error"),
+            submitted_at=datetime.fromisoformat(data["submitted_at"]) if data.get("submitted_at") else None,
+            started_at=datetime.fromisoformat(data["started_at"]) if data.get("started_at") else None,
+            finished_at=datetime.fromisoformat(data["finished_at"]) if data.get("finished_at") else None,
+            retries=data.get("retries", 0),
+            args=tuple(data.get("args", ())),
+            kwargs=data.get("kwargs", {}),
         )
     
 @dataclass

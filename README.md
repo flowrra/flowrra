@@ -4,13 +4,16 @@ Lightweight async task queue built on pure Python asyncio. A Celery-inspired bac
 
 ## Features
 
-- **Zero Dependencies** - Built on pure Python 3.11+ asyncio
+- **Zero Dependencies** - Built on pure Python 3.11+ asyncio (only aiosqlite required for scheduler)
 - **Simple API** - Decorator-based task registration, just like Celery
 - **Async First** - Native async/await support for I/O-bound tasks
 - **CPU-Bound Support** - ProcessPoolExecutor integration for compute-heavy tasks
+- **Task Scheduling** - Celery Beat-like persistent scheduling with cron, intervals, and one-time tasks
+- **Web UI** - Built-in monitoring dashboard for FastAPI, Flask/Quart, and Django
 - **Automatic Retries** - Configurable retry logic with exponential backoff
 - **Priority Queues** - Control task execution order
 - **Pluggable Backends** - Extensible result storage (in-memory included)
+- **Multiple Databases** - SQLite, PostgreSQL, and MySQL support for scheduler
 - **Type Safe** - Full type hints for better IDE support
 
 ## Installation
@@ -22,6 +25,36 @@ pip install flowrra
 With Redis backend support (for distributed execution):
 ```bash
 pip install flowrra[redis]
+```
+
+With PostgreSQL scheduler support:
+```bash
+pip install flowrra[postgresql]
+```
+
+With MySQL scheduler support:
+```bash
+pip install flowrra[mysql]
+```
+
+With Web UI support:
+```bash
+# FastAPI
+pip install flowrra[ui-fastapi]
+
+# Flask/Quart
+pip install flowrra[ui-flask]
+
+# Django
+pip install flowrra[ui-django]
+
+# All UI adapters
+pip install flowrra[ui]
+```
+
+With all optional dependencies:
+```bash
+pip install flowrra[all]
 ```
 
 For development:
@@ -113,6 +146,66 @@ async def process_job(job_id: int):
     # Workers pull tasks from Redis queue
     return f"Processed job {job_id}"
 ```
+
+### Task Scheduling
+
+Schedule tasks to run periodically using cron expressions, intervals, or one-time execution:
+
+```python
+from flowrra import Flowrra
+import asyncio
+
+# Create app and define tasks
+app = Flowrra.from_urls()
+
+@app.task()
+async def send_daily_report():
+    print("Generating daily report...")
+    return "Report sent"
+
+@app.task()
+async def cleanup_old_data():
+    print("Cleaning up old data...")
+    return "Cleanup complete"
+
+# Create integrated scheduler (automatically connected to app's executors)
+scheduler = app.create_scheduler()
+
+async def main():
+    # Schedule tasks
+    await scheduler.schedule_cron(
+        task_name="send_daily_report",
+        cron="0 9 * * *",  # Every day at 9 AM
+        description="Daily report generation"
+    )
+
+    await scheduler.schedule_interval(
+        task_name="cleanup_old_data",
+        interval=3600,  # Every hour
+        description="Hourly cleanup"
+    )
+
+    # Start app and scheduler
+    await app.start()
+    await scheduler.start()
+
+    # Keep running
+    await asyncio.Event().wait()
+
+asyncio.run(main())
+```
+
+**Scheduling options**:
+- **Cron**: `schedule_cron(task_name, cron="0 9 * * *")` - Standard cron syntax
+- **Interval**: `schedule_interval(task_name, interval=300)` - Every N seconds
+- **One-time**: `schedule_once(task_name, run_at=datetime)` - Run once at specific time
+
+**Database backends**:
+- SQLite (default): `get_scheduler_backend()`
+- PostgreSQL: `get_scheduler_backend("postgresql://user:pass@host/db")`
+- MySQL: `get_scheduler_backend("mysql://user:pass@host/db")`
+
+See [SCHEDULER.md](SCHEDULER.md) for complete documentation.
 
 ## Core Concepts
 
@@ -516,6 +609,120 @@ if __name__ == '__main__':
 ```
 
 **Note:** For production Flask apps with Flowrra, consider using an ASGI server like Uvicorn or Hypercorn instead of the default WSGI server.
+
+## Web UI
+
+Flowrra includes built-in web interfaces for monitoring and managing your tasks. Mount the UI into your existing web application to get instant visibility into task execution, schedules, and system health.
+
+### Features
+
+- 📊 **Dashboard** - System overview with real-time statistics
+- 📋 **Task Management** - View registered tasks and execution history
+- 📅 **Schedule Management** - Create and manage cron schedules
+- 🔧 **JSON API** - RESTful endpoints for programmatic access
+- ⚡ **Multiple Frameworks** - FastAPI, Flask/Quart, and Django support
+- 🔌 **WebSocket Support** - Optional real-time task updates (no page refresh needed)
+
+### Quick Start
+
+**FastAPI:**
+```python
+from fastapi import FastAPI
+from flowrra import Flowrra
+from flowrra.ui.fastapi import create_router
+
+app = FastAPI()
+flowrra = Flowrra.from_urls()
+
+# Mount Flowrra UI
+app.include_router(create_router(flowrra), prefix="/flowrra")
+
+# Visit: http://localhost:8000/flowrra/
+```
+
+**Flask/Quart:**
+```python
+from quart import Quart
+from flowrra import Flowrra
+from flowrra.ui.flask import create_blueprint
+
+app = Quart(__name__)
+flowrra = Flowrra.from_urls()
+
+# Mount Flowrra UI
+app.register_blueprint(create_blueprint(flowrra), url_prefix="/flowrra")
+
+# Visit: http://localhost:8000/flowrra/
+```
+
+**Django:**
+```python
+# urls.py
+from django.urls import path, include
+from flowrra.ui.django import get_urls
+
+urlpatterns = [
+    path('flowrra/', include(get_urls(flowrra))),
+]
+
+# Visit: http://localhost:8000/flowrra/
+```
+
+### Installation
+
+```bash
+# FastAPI
+pip install flowrra[ui-fastapi]
+
+# Flask/Quart
+pip install flowrra[ui-flask]
+
+# Django
+pip install flowrra[ui-django]
+
+# All UI adapters
+pip install flowrra[ui]
+```
+
+### API Endpoints
+
+All UI adapters provide these JSON API endpoints:
+
+- `GET /api/stats` - System statistics
+- `GET /api/health` - Health check
+- `GET /api/tasks` - List registered tasks
+- `GET /api/tasks/{name}` - Task details
+- `GET /api/schedules` - List schedules
+- `POST /api/schedules/cron` - Create schedule
+- `PUT /api/schedules/{id}/enable` - Enable schedule
+- `PUT /api/schedules/{id}/disable` - Disable schedule
+- `DELETE /api/schedules/{id}` - Delete schedule
+
+### Real-Time Updates (WebSocket)
+
+The UI supports optional WebSocket connections for real-time task updates without page refreshes:
+
+- **FastAPI**: WebSocket support is built-in and enabled automatically
+- **Django**: Requires Django-Channels setup (see [WEBSOCKET_SETUP.md](docs/WEBSOCKET_SETUP.md))
+- **Flask/Quart**: Requires migration to Quart (see [WEBSOCKET_SETUP.md](docs/WEBSOCKET_SETUP.md))
+
+**Without WebSocket**, the frontend automatically falls back to polling every 15 seconds. Both modes work seamlessly!
+
+### Full Documentation
+
+See [UI.md](UI.md) for complete documentation including:
+- Detailed integration guides for each framework
+- API endpoint reference
+- Customization and styling
+- Authentication setup
+- Production deployment
+- Troubleshooting
+
+See [docs/WEBSOCKET_SETUP.md](docs/WEBSOCKET_SETUP.md) for WebSocket configuration:
+- Django-Channels setup guide
+- Flask to Quart migration
+- Testing WebSocket connections
+- Production deployment considerations
 
 ## Advanced Usage
 

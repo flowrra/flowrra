@@ -4,12 +4,14 @@ import asyncio
 import logging
 import uuid
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Callable
 
 from flowrra.registry import TaskRegistry
 from flowrra.task import Task, TaskResult, TaskStatus
 from flowrra.exceptions import ExecutorNotRunningError
 from flowrra.config import Config
+from flowrra.events import event_bus
 
 logger = logging.getLogger("flowrra")
 
@@ -103,11 +105,28 @@ class BaseTaskExecutor(ABC):
             priority=priority
         )
 
-        # Initialize as pending
-        await self.results.store(
-            task_id,
-            TaskResult(task_id=task_id, status=TaskStatus.PENDING)
+        # Initialize as pending with full metadata
+        await self._store_and_emit(
+            TaskResult(
+                task_id=task_id,
+                status=TaskStatus.PENDING,
+                task_name=task_name,
+                submitted_at=datetime.now(),
+                args=args,
+                kwargs=kwargs,
+            )
         )
+        # await self.results.store(
+        #     task_id,
+        #     TaskResult(
+        #         task_id=task_id,
+        #         status=TaskStatus.PENDING,
+        #         task_name=task_name,
+        #         submitted_at=datetime.now(),
+        #         args=args,
+        #         kwargs=kwargs,
+        #     )
+        # )
 
         if self.broker is not None:
             await self.broker.push(task)
@@ -167,6 +186,14 @@ class BaseTaskExecutor(ABC):
             worker_id: ID of worker executing the task
         """
         pass
+
+    async def _store_and_emit(self, result: TaskResult):
+        await self.results.store(result.task_id, result)
+
+        await event_bus.emit({
+            'type': 'task.update',
+            'task': result.to_dict  # property, not method
+        })
 
     @abstractmethod
     async def start(self):

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+
+{% block title %}Schedules - Flowrra{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Schedules</h2>
+    <p class="subtitle">Scheduled Task Management</p>
+</div>
+
+<!-- Scheduler Stats -->
+{% if scheduler_stats %}
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon">⏰</div>
+        <div class="stat-content">
+            <h3>Scheduler Status</h3>
+            <p class="stat-value {% if scheduler_stats.running %}status-success{% else %}status-error{% endif %}">
+                {% if scheduler_stats.running %}Running{% else %}Stopped{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon">📋</div>
+        <div class="stat-content">
+            <h3>Total Schedules</h3>
+            <p class="stat-value">{{ scheduler_stats.total_schedules }}</p>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon">✅</div>
+        <div class="stat-content">
+            <h3>Enabled</h3>
+            <p class="stat-value status-success">{{ scheduler_stats.enabled_schedules }}</p>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon">⏸️</div>
+        <div class="stat-content">
+            <h3>Disabled</h3>
+            <p class="stat-value status-gray">{{ scheduler_stats.disabled_schedules }}</p>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    <strong>ℹ️ Scheduler Not Configured</strong>
+    <p>No scheduler is currently configured for this Flowrra application.</p>
+</div>
+{% endif %}
+
+<!-- Filter -->
+<div class="section">
+    <div class="filter-bar">
+        <a href="/schedules" class="btn {% if not enabled_only %}btn-primary{% else %}btn-secondary{% endif %}">
+            All Schedules
+        </a>
+        <a href="/schedules?enabled_only=true" class="btn {% if enabled_only %}btn-primary{% else %}btn-secondary{% endif %}">
+            Enabled Only
+        </a>
+    </div>
+</div>
+
+<!-- Schedules List -->
+<div class="section">
+    <div class="section-header">
+        <h3>
+            Schedules
+            {% if enabled_only %}
+                <span class="text-muted">(enabled only)</span>
+            {% endif %}
+        </h3>
+        <p class="text-muted">{{ schedules | length }} schedule(s) found</p>
+    </div>
+
+    {% if schedules %}
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Task Name</th>
+                    <th>Schedule Type</th>
+                    <th>Schedule</th>
+                    <th>Next Run</th>
+                    <th>Last Run</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for schedule in schedules %}
+                <tr>
+                    <td><code class="schedule-id">{{ schedule.id|slice:":8" }}</code></td>
+                    <td><strong>{{ schedule.task_name }}</strong></td>
+                    <td>
+                        <span class="badge badge-blue">{{ schedule.schedule_type }}</span>
+                    </td>
+                    <td><code>{{ schedule.schedule }}</code></td>
+                    <td>{{ schedule.next_run_at |default:"Never" }}</td>
+                    <td>{{ schedule.last_run_at |default:"Never" }}</td>
+                    <td>
+                        <span class="badge {% if schedule.enabled %}badge-success{% else %}badge-gray{% endif %}">
+                            {% if schedule.enabled %}Enabled{% else %}Disabled{% endif %}
+                        </span>
+                    </td>
+                    <td>{{ schedule.priority }}</td>
+                    <td class="text-muted">{{ schedule.description|default:"-" }}</td>
+                </tr>
+                {% if schedule.args or schedule.kwargs %}
+                <tr class="details-row">
+                    <td colspan="9">
+                        <strong>Arguments:</strong>
+                        {% if schedule.args %}
+                            <code>args={{ schedule.args }}</code>
+                        {% endif %}
+                        {% if schedule.kwargs %}
+                            <code>kwargs={{ schedule.kwargs }}</code>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <p>No schedules found{% if enabled_only %} (enabled only){% endif %}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- API Reference -->
+<div class="section">
+    <h3>API Endpoints</h3>
+    <div class="api-docs">
+        <div class="api-endpoint">
+            <code class="method-get">GET</code>
+            <code>/api/schedules</code>
+            <span class="text-muted">- List all schedules</span>
+        </div>
+        <div class="api-endpoint">
+            <code class="method-get">GET</code>
+            <code>/api/schedules/{id}</code>
+            <span class="text-muted">- Get schedule details</span>
+        </div>
+        <div class="api-endpoint">
+            <code class="method-post">POST</code>
+            <code>/api/schedules/cron</code>
+            <span class="text-muted">- Create cron schedule</span>
+        </div>
+        <div class="api-endpoint">
+            <code class="method-put">PUT</code>
+            <code>/api/schedules/{id}/enable</code>
+            <span class="text-muted">- Enable schedule</span>
+        </div>
+        <div class="api-endpoint">
+            <code class="method-put">PUT</code>
+            <code>/api/schedules/{id}/disable</code>
+            <span class="text-muted">- Disable schedule</span>
+        </div>
+        <div class="api-endpoint">
+            <code class="method-delete">DELETE</code>
+            <code>/api/schedules/{id}</code>
+            <span class="text-muted">- Delete schedule</span>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Creation Form (Future Enhancement) -->
+<div class="section">
+    <h3>Create Schedule</h3>
+    <p class="text-muted">Use the API endpoint to create schedules programmatically. UI form coming soon.</p>
+    <pre class="code-block">
+# Example: Create cron schedule via API
+import httpx
+
+response = httpx.post("/api/schedules/cron", json={
+    "task_name": "my_task",
+    "cron": "0 9 * * *",
+    "enabled": True,
+    "description": "Daily morning task"
+})
+print(response.json())
+    </pre>
+</div>
+{% endblock %}

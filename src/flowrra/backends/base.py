@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from flowrra.task import TaskResult
+from flowrra.task import TaskResult, TaskStatus
 
 class BaseResultBackend(ABC):
     """Abstract base for result storage backends.
@@ -59,8 +59,40 @@ class BaseResultBackend(ABC):
 
     async def clear(self) -> int:
         """Clear all results. Optional to implement.
-        
+
         Returns:
             Number of results cleared
         """
         raise NotImplementedError("clear() not supported by this backend")
+
+    async def list_by_status(
+        self,
+        status: TaskStatus,
+        limit: int | None = None,
+        offset: int = 0
+    ) -> list[TaskResult]:
+        """List tasks by status with optional pagination.
+
+        Optional to implement. Backends that don't support querying should
+        raise NotImplementedError (default behavior).
+
+        Args:
+            status: Task status to filter by (PENDING, RUNNING, SUCCESS, FAILED, RETRYING)
+            limit: Maximum number of results to return (None = no limit)
+            offset: Number of results to skip (for pagination)
+
+        Returns:
+            List of TaskResult objects matching the status, ordered by submitted_at DESC
+            (most recent first). Empty list if no matches found.
+
+        Raises:
+            NotImplementedError: If backend doesn't support status queries
+
+        Note:
+            - Results are ordered by submitted_at DESC (newest first)
+            - If submitted_at is None, those tasks are ordered last
+            - InMemoryBackend and RedisBackend both support this operation
+        """
+        raise NotImplementedError(
+            f"list_by_status() not supported by {self.__class__.__name__}"
+        )

@@ -23,7 +23,9 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = []
+dependencies = [
+    "aiosqlite>=0.19.0",  # Required for SQLite scheduler backend
+]
 
 [project.optional-dependencies]
 dev = [
@@ -41,6 +43,17 @@ docs = [
 ]
 redis = [
     "redis[hiredis]>=5.0.0",
+]
+postgresql = [
+    "asyncpg>=0.29.0",
+]
+mysql = [
+    "aiomysql>=0.2.0",
+]
+all = [
+    "redis[hiredis]>=5.0.0",
+    "asyncpg>=0.29.0",
+    "aiomysql>=0.2.0",
 ]
 
 [project.urls]
