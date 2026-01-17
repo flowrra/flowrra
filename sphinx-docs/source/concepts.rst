@@ -46,7 +46,7 @@ Tasks
 Tasks are the core unit of work in Flowrra. They can be either:
 
 * **Async Tasks** (I/O-bound): Use ``async def`` for network requests, file I/O, etc.
-* **Sync Tasks** (CPU-bound): Use regular ``def`` with ``executor="cpu"`` for computation
+* **Sync Tasks** (CPU-bound): Use regular ``def`` with ``cpu_bound=True`` for computation
 
 
 Task Lifecycle

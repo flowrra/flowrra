@@ -55,11 +55,11 @@ Configure retry behavior and other options:
 CPU-Bound Tasks
 ---------------
 
-For CPU-intensive operations, use the ``executor`` parameter:
+For CPU-intensive operations, use the ``cpu_bound`` parameter:
 
 .. code-block:: python
 
-   @app.task(executor="cpu")
+   @app.task(cpu_bound=True)
    def compute_heavy_operation(n: int):
        """CPU-intensive task using ProcessPoolExecutor."""
        result = sum(i * i for i in range(n))

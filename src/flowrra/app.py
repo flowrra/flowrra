@@ -75,7 +75,6 @@ class Flowrra:
 
         Returns:
             Flowrra instance
-
         """
         broker_config = BrokerConfig(url=broker) if broker else None
         backend_config = BackendConfig(url=backend) if backend else None

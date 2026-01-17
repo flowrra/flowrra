@@ -42,11 +42,11 @@ Use ``async def`` for I/O-bound operations:
 Sync Tasks (CPU-bound)
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Use regular ``def`` with ``executor="cpu"`` for CPU-intensive work:
+Use regular ``def`` with ``cpu_bound=True`` for CPU-intensive work:
 
 .. code-block:: python
 
-   @app.task(executor="cpu")
+   @app.task(cpu_bound=True)
    def process_large_file(file_path: str):
        # CPU-intensive operation
        with open(file_path) as f:
@@ -67,7 +67,7 @@ The ``@app.task()`` decorator accepts several configuration options:
        max_retries=3,                 # Number of retry attempts
        retry_delay=5.0,               # Initial retry delay in seconds
        priority=10,                   # Higher = executed first
-       executor="io",                 # Executor type: "io", "cpu", or custom
+       cpu_bound=False,               # Set to True for CPU-intensive tasks
        timeout=30.0                   # Task timeout in seconds
    )
    async def configured_task():
@@ -210,7 +210,7 @@ Data Processing Task
 
 .. code-block:: python
 
-   @app.task(executor="cpu", timeout=300.0)
+   @app.task(cpu_bound=True, timeout=300.0)
    def process_csv(file_path: str):
        """Process large CSV file."""
        import pandas as pd
