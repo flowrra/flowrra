@@ -74,12 +74,23 @@ class Scheduler:
         """
         self.backend = backend
         self.registry = registry
-        self.check_interval = check_interval  # Fallback only
+        self.check_interval = check_interval
         self.io_executor = io_executor
         self.cpu_executor = cpu_executor
         self._running = False
         self._scheduler_task: asyncio.Task | None = None
         self._submit_callback: Callable | None = None
+        self._wake_event: asyncio.Event | None = None 
+
+    def _wake_scheduler(self) -> None:
+        """Wake up the scheduler loop to recalculate sleep time.
+
+        Called when new tasks are scheduled to ensure the scheduler
+        checks for the new task immediately instead of waiting for
+        the current sleep duration to complete.
+        """
+        if self._wake_event is not None and self._running:
+            self._wake_event.set()
 
     def set_submit_callback(self, callback: Callable) -> None:
         """Set callback for submitting tasks to executor.
@@ -127,6 +138,7 @@ class Scheduler:
             )
 
         self._running = True
+        self._wake_event = asyncio.Event()
         self._scheduler_task = asyncio.create_task(self._scheduler_loop())
 
     async def stop(self) -> None:
@@ -202,6 +214,8 @@ class Scheduler:
         )
 
         await self.backend.create(scheduled_task)
+        # Wake scheduler to check new task
+        self._wake_scheduler()
         return scheduled_task.id
 
     async def schedule_interval(
@@ -262,6 +276,7 @@ class Scheduler:
         )
 
         await self.backend.create(scheduled_task)
+        self._wake_scheduler()
         return scheduled_task.id
 
     async def schedule_once(
@@ -314,6 +329,7 @@ class Scheduler:
         )
 
         await self.backend.create(scheduled_task)
+        self._wake_scheduler()
         return scheduled_task.id
 
     async def unschedule(self, task_id: str) -> bool:
@@ -402,7 +418,28 @@ class Scheduler:
                 logger.debug(f"Next task due in {sleep_duration:.1f}s, sleeping until then")
 
             try:
-                await asyncio.sleep(sleep_duration)
+                # Wait for either sleep timeout OR wake event (new task scheduled)
+                sleep_task = asyncio.create_task(asyncio.sleep(sleep_duration))
+                wake_task = asyncio.create_task(self._wake_event.wait())
+
+                _, pending = await asyncio.wait(
+                    [sleep_task, wake_task],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+
+                # Cancel the task that didn't complete
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+                # Clear the wake event for next iteration
+                if self._wake_event.is_set():
+                    self._wake_event.clear()
+                    logger.debug("Scheduler woken by new task schedule")
+
             except asyncio.CancelledError:
                 # Scheduler is being stopped
                 break
