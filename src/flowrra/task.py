@@ -79,6 +79,7 @@ class Task:
     retry_delay: float = 1.0
     current_retry: int = 0
     priority: int = 0
+    cpu_bound: bool = False
 
     def __lt__(self, other):
         return self.priority < other.priority

@@ -3,6 +3,7 @@ from typing import Callable, TYPE_CHECKING
 from flowrra.config import Config, BrokerConfig, BackendConfig
 from flowrra.executors.io_executor import IOExecutor
 from flowrra.executors.cpu_executor import CPUExecutor
+from flowrra.registry import TaskRegistry
 from flowrra.task import TaskResult
 
 if TYPE_CHECKING:
@@ -44,6 +45,7 @@ class Flowrra:
             config = Config()
 
         self._config = config
+        self._registry = TaskRegistry()
         self._io_executor: IOExecutor | None = None
         self._cpu_executor: CPUExecutor | None = None
         self._scheduler: "Scheduler | None" = None
@@ -54,11 +56,11 @@ class Flowrra:
             if self._cpu_executor is None:
                 if self._config.backend is None:
                     raise ValueError("CPU-bound tasks require backend for cross-process results")
-                self._cpu_executor = CPUExecutor(config=self._config)
+                self._cpu_executor = CPUExecutor(config=self._config, registry=self._registry)
             return self._cpu_executor
         else:
             if self._io_executor is None:
-                self._io_executor = IOExecutor(config=self._config)
+                self._io_executor = IOExecutor(config=self._config, registry=self._registry)
             return self._io_executor
 
     @classmethod
@@ -292,7 +294,7 @@ class Flowrra:
 
     @property
     def registry(self):
-        """Get the task registry from the IO executor.
+        """Get the shared task registry.
 
         Returns:
             TaskRegistry instance
@@ -300,13 +302,7 @@ class Flowrra:
         Note:
             Both IOExecutor and CPUExecutor share the same registry instance
         """
-        if self._io_executor:
-            return self._io_executor.registry
-        elif self._cpu_executor:
-            return self._cpu_executor.registry
-        else:
-            self._init_executor(cpu_bound=False)
-            return self._io_executor.registry
+        return self._registry
 
     @property
     def scheduler(self) -> "Scheduler | None":

@@ -8,6 +8,7 @@ from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
 from flowrra.executors.base import BaseTaskExecutor
+from flowrra.registry import TaskRegistry
 from flowrra.task import Task, TaskResult, TaskStatus
 from flowrra.config import Config
 
@@ -48,11 +49,12 @@ class CPUExecutor(BaseTaskExecutor):
             result = await executor.wait_for_result(task_id)
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, registry: TaskRegistry | None = None):
         """Initialize CPU executor.
 
         Args:
             config: Config object (REQUIRED) with backend configuration
+            registry: Shared TaskRegistry instance (optional, creates new if None)
 
         Raises:
             ValueError: If config is None or config lacks backend
@@ -71,7 +73,7 @@ class CPUExecutor(BaseTaskExecutor):
                 "Example: Config(backend=BackendConfig(url='redis://localhost:6379/0'))"
             )
 
-        super().__init__(config=config)
+        super().__init__(config=config, registry=registry, queue_suffix=":cpu")
         self._cpu_workers = config.executor.cpu_workers or os.cpu_count() or 4
         self._cpu_executor: ProcessPoolExecutor | None = None
         self._num_workers = 1  # Single worker to manage process pool
@@ -112,7 +114,6 @@ class CPUExecutor(BaseTaskExecutor):
             retries=task.current_retry,
         )
 
-        # await self.results.store(task.id, result)
         await self._store_and_emit(result)
         logger.info(f"Worker-{worker_id} running {task.name}[{task.id[:8]}] in process pool")
 
@@ -128,7 +129,6 @@ class CPUExecutor(BaseTaskExecutor):
             result.status = TaskStatus.SUCCESS
             result.result = output
             result.finished_at = datetime.now()
-            # await self.results.store(task.id, result)
             await self._store_and_emit(result)
             logger.info(f"Task {task.name}[{task.id[:8]}] succeeded")
         except Exception as e:
@@ -136,7 +136,6 @@ class CPUExecutor(BaseTaskExecutor):
                 task.current_retry += 1
                 result.status = TaskStatus.RETRYING
                 result.retries = task.current_retry
-                # await self.results.store(task.id, result)
                 await self._store_and_emit(result)
 
                 logger.warning(
@@ -145,12 +144,17 @@ class CPUExecutor(BaseTaskExecutor):
                 )
 
                 await asyncio.sleep(task.retry_delay)
-                await self._queue.put(task)
+                # Re-submit for retry
+                if self._queue is not None:
+                    await self._queue.put(task)
+                elif self.broker is not None:
+                    await self.broker.push(task)
+                else:
+                    logger.error(f"Cannot retry task {task.name}[{task.id[:8]}]: no queue or broker available")
             else:
                 result.status = TaskStatus.FAILED
                 result.error = str(e)
                 result.finished_at = datetime.now()
-                # await self.results.store(task.id, result)
                 await self._store_and_emit(result)
 
                 logger.error(f"Task {task.name}[{task.id[:8]}] failed: {e}")
@@ -180,7 +184,7 @@ class CPUExecutor(BaseTaskExecutor):
 
         self._running = False
 
-        if wait:
+        if wait and self._queue is not None:
             try:
                 await asyncio.wait_for(self._queue.join(), timeout=timeout)
             except asyncio.TimeoutError:

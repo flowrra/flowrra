@@ -148,7 +148,7 @@ class RedisBackend(BaseResultBackend):
 
             finally:
                 await pubsub.unsubscribe(channel)
-                await pubsub.close()
+                await pubsub.aclose()
 
         except asyncio.TimeoutError:
             raise

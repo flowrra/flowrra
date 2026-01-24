@@ -107,6 +107,7 @@ class RedisBroker(BaseBroker):
                 "retry_delay": task.retry_delay,
                 "current_retry": task.current_retry,
                 "priority": task.priority,
+                "cpu_bound": task.cpu_bound,
             }
             task_json = json.dumps(task_data)
 
@@ -153,6 +154,7 @@ class RedisBroker(BaseBroker):
                 retry_delay=task_data["retry_delay"],
                 current_retry=task_data["current_retry"],
                 priority=task_data["priority"],
+                cpu_bound=task_data.get("cpu_bound", False),  # Default to False for backward compatibility
             )
 
             return task

@@ -42,7 +42,7 @@ class TestTaskRegistry:
 
     def test_register_sync_cpu_bound_task(self):
         """Test registering a sync CPU-bound task."""
-        registry = TaskRegistry()
+        registry = TaskRegistry(strict_cpu_checks=False)
 
         @registry.task(name=None, cpu_bound=True)
         def compute(n: int) -> int:
@@ -148,7 +148,7 @@ class TestTaskRegistry:
 
     def test_multiple_tasks(self):
         """Test registering multiple tasks."""
-        registry = TaskRegistry()
+        registry = TaskRegistry(strict_cpu_checks=False)
 
         @registry.task(name=None)
         async def task1():
@@ -185,7 +185,7 @@ class TestTaskRegistry:
 
     def test_sync_cpu_task_execution(self):
         """Test that registered sync tasks can be executed."""
-        registry = TaskRegistry()
+        registry = TaskRegistry(strict_cpu_checks=False)
 
         @registry.task(name=None, cpu_bound=True)
         def multiply(a: int, b: int) -> int:

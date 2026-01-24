@@ -1,14 +1,20 @@
 import asyncio
-from functools import wraps
-from typing import Callable, Coroutine
+from typing import Callable, Coroutine, Any
 
 from flowrra.exceptions import TaskNotFoundError
 
 
 class TaskRegistry:
-    def __init__(self):
-        self._tasks: dict[str, Callable[..., Coroutine]] = {}
-    
+    def __init__(self, strict_cpu_checks: bool = True):
+        """Initialize the task registry.
+
+        Args:
+            strict_cpu_checks: If True, enforce module-level requirement for CPU tasks.
+                              Set to False for testing purposes only.
+        """
+        self._tasks: dict[str, Callable[..., Any]] = {}
+        self._strict_cpu_checks = strict_cpu_checks
+
     def task(
         self,
         name: str | None = None,
@@ -31,31 +37,27 @@ class TaskRegistry:
                     raise TypeError(
                         f"CPU-bound task '{task_name}' must be a sync function, not async"
                     )
-                
-                func.task_name = task_name
-                func.cpu_bound = cpu_bound
-                func.max_retries = max_retries
-                func.retry_delay = retry_delay
-                self._tasks[task_name] = func
-                return func
+
+                if self._strict_cpu_checks and func.__qualname__ != func.__name__:
+                    raise TypeError(
+                        f"CPU-bound task '{task_name}' must be module-level"
+                    )
             else:
                 if not asyncio.iscoroutinefunction(func):
                     raise TypeError(
                         f"Task '{task_name}' must be an async function."
                     )
-
-                @wraps(func)
-                async def wrapper(*args, **kwargs):
-                    return await func(*args, **kwargs)
                 
-                wrapper.task_name = task_name
-                wrapper.cpu_bound = cpu_bound
-                wrapper.max_retries = max_retries
-                wrapper.retry_delay = retry_delay
-
-                self._tasks[task_name] = wrapper
-
-                return wrapper
+            if task_name in self._tasks:
+                raise ValueError(f"Task '{task_name}' is already registered")
+            
+            func.task_name = task_name
+            func.cpu_bound = cpu_bound
+            func.max_retries = max_retries
+            func.retry_delay = retry_delay
+            func.__flowrra_task__ = True
+            self._tasks[task_name] = func
+            return func
         
         return decorator
     

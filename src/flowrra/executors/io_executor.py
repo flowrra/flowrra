@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 
 from flowrra.executors.base import BaseTaskExecutor
+from flowrra.registry import TaskRegistry
 from flowrra.task import Task, TaskResult, TaskStatus
 from flowrra.config import Config
 
@@ -23,12 +24,14 @@ class IOExecutor(BaseTaskExecutor):
 
     def __init__(
         self,
-        config: Config
+        config: Config,
+        registry: TaskRegistry | None = None
     ):
         """Initialize I/O executor.
 
         Args:
             config: Configuration object (optional, defaults to Config())
+            registry: Shared TaskRegistry instance (optional, creates new if None)
 
         Example:
             # With full config
@@ -46,7 +49,7 @@ class IOExecutor(BaseTaskExecutor):
         """
         num_workers = config.executor.num_workers
 
-        super().__init__(config=config)
+        super().__init__(config=config, registry=registry, queue_suffix=":io")
         self._num_workers = num_workers
         self._config = config
 
@@ -85,7 +88,6 @@ class IOExecutor(BaseTaskExecutor):
             retries=task.current_retry,
         )
 
-        # await self.results.store(task.id, result)
         await self._store_and_emit(result)
         logger.info(f"Worker-{worker_id} running {task.name}[{task.id[:8]}]")
 
@@ -95,7 +97,6 @@ class IOExecutor(BaseTaskExecutor):
             result.status = TaskStatus.SUCCESS
             result.result = output
             result.finished_at = datetime.now()
-            # await self.results.store(task.id, result)
             await self._store_and_emit(result)
             logger.info(f"Task {task.name}[{task.id[:8]}] succeeded")
         except Exception as e:
@@ -103,7 +104,6 @@ class IOExecutor(BaseTaskExecutor):
                 task.current_retry += 1
                 result.status = TaskStatus.RETRYING
                 result.retries = task.current_retry
-                # await self.results.store(task.id, result)
                 await self._store_and_emit(result)
 
                 logger.warning(
@@ -121,7 +121,6 @@ class IOExecutor(BaseTaskExecutor):
                 result.status = TaskStatus.FAILED
                 result.error = str(e)
                 result.finished_at = datetime.now()
-                # await self.results.store(task.id, result)
                 await self._store_and_emit(result)
 
                 logger.error(f"Task {task.name}[{task.id[:8]}] failed: {e}")

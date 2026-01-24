@@ -39,7 +39,7 @@ Advanced usage with IOExecutor and CPUExecutor:
     )
 """
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 
 from flowrra.app import Flowrra
 from flowrra.task import Task, TaskResult, TaskStatus

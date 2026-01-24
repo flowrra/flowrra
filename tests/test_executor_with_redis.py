@@ -110,10 +110,13 @@ async def test_cpu_executor_with_redis_string_api(check_redis, cleanup_redis):
 @pytest.mark.asyncio
 async def test_io_executor_multiple_tasks_with_redis(check_redis, cleanup_redis):
     """Test IOExecutor with multiple tasks using Redis backend."""
-    executor = IOExecutor(
-        num_workers=3,
-        backend="redis://localhost:6379/0"
+    from flowrra import Config, BackendConfig, ExecutorConfig
+
+    config = Config(
+        backend=BackendConfig(url="redis://localhost:6379/0"),
+        executor=ExecutorConfig(num_workers=3)
     )
+    executor = IOExecutor(config=config)
 
     @executor.task()
     async def add_numbers(a: int, b: int):

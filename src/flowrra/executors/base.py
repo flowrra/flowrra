@@ -24,15 +24,17 @@ class BaseTaskExecutor(ABC):
     task execution logic specific to I/O-bound or CPU-bound tasks.
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, registry: TaskRegistry | None = None, queue_suffix: str = ""):
         """Initialize base executor.
 
         Args:
             config: Configuration object (optional, defaults to Config())
+            registry: Shared TaskRegistry instance (optional, creates new if None)
+            queue_suffix: Queue suffix for broker (e.g., ":io" or ":cpu")
         """
-        self.registry = TaskRegistry()
+        self.registry = registry if registry is not None else TaskRegistry()
         self.results = config.create_backend()
-        self.broker = config.create_broker()
+        self.broker = config.create_broker(queue_suffix=queue_suffix)
 
         max_queue_size = config.executor.max_queue_size
 
@@ -48,16 +50,6 @@ class BaseTaskExecutor(ABC):
     def is_running(self) -> bool:
         """Check if executor is currently running."""
         return self._running
-
-    @property
-    def pending_count(self) -> int:
-        """Get number of pending tasks in queue."""
-        if self._queue is not None:
-            return self._queue.qsize()
-        else:
-            # For broker-based queue, we can't get size synchronously
-            # Return 0 or implement async method
-            return 0
 
     def task(self, *args, **kwargs):
         """Decorator shortcut for self.registry.task()"""
@@ -91,6 +83,7 @@ class BaseTaskExecutor(ABC):
         task_name = getattr(task_func, 'task_name', task_func.__name__)
         max_retries = getattr(task_func, 'max_retries', 3)
         retry_delay = getattr(task_func, 'retry_delay', 1.0)
+        cpu_bound = getattr(task_func, 'cpu_bound', False)
 
         self.registry.get_or_raise(task_name)
 
@@ -102,7 +95,8 @@ class BaseTaskExecutor(ABC):
             kwargs=kwargs,
             max_retries=max_retries,
             retry_delay=retry_delay,
-            priority=priority
+            priority=priority,
+            cpu_bound=cpu_bound
         )
 
         # Initialize as pending with full metadata
@@ -116,17 +110,6 @@ class BaseTaskExecutor(ABC):
                 kwargs=kwargs,
             )
         )
-        # await self.results.store(
-        #     task_id,
-        #     TaskResult(
-        #         task_id=task_id,
-        #         status=TaskStatus.PENDING,
-        #         task_name=task_name,
-        #         submitted_at=datetime.now(),
-        #         args=args,
-        #         kwargs=kwargs,
-        #     )
-        # )
 
         if self.broker is not None:
             await self.broker.push(task)
@@ -147,7 +130,7 @@ class BaseTaskExecutor(ABC):
             task = None
             try:
                 if self.broker is not None:
-                    task = await self.broker.pop(timeout=0.5)
+                    task = await self.broker.pop(timeout=1)
                     if task is None:
                         if not self._running:
                             break
@@ -192,7 +175,7 @@ class BaseTaskExecutor(ABC):
 
         await event_bus.emit({
             'type': 'task.update',
-            'task': result.to_dict  # property, not method
+            'task': result.to_dict,
         })
 
     @abstractmethod

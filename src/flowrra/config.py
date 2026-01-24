@@ -9,6 +9,7 @@ class BrokerConfig:
     max_connections: int = 50
     socket_timeout: float = 5.0
     retry_on_timeout: bool = True
+    queue_key: str | None = None
 
     def __post_init__(self):
         """Validate broker configuration."""
@@ -21,8 +22,11 @@ class BrokerConfig:
         if self.socket_timeout < 0:
             raise ValueError("socket_timeout must be non-negative")
 
-    def create_broker(self) -> "BaseBroker":
+    def create_broker(self, queue_suffix: str = "") -> "BaseBroker":
         """Create broker instance from this configuration.
+
+        Args:
+            queue_suffix: Optional suffix for queue key (e.g., ":io" or ":cpu")
 
         Returns:
             Broker instance
@@ -32,11 +36,14 @@ class BrokerConfig:
         """
         from flowrra.brokers.factory import get_broker
 
+        queue_key = self.queue_key if self.queue_key else f"flowrra:queue{queue_suffix}"
+
         return get_broker(
             self.url,
             max_connections=self.max_connections,
             socket_timeout=self.socket_timeout,
             retry_on_timeout=self.retry_on_timeout,
+            queue_key=queue_key,
         )
 
 
@@ -164,8 +171,11 @@ class Config:
         if self.executor is None:
             self.executor = ExecutorConfig()
 
-    def create_broker(self) -> "BaseBroker | None":
+    def create_broker(self, queue_suffix: str = "") -> "BaseBroker | None":
         """Create broker instance from configuration.
+
+        Args:
+            queue_suffix: Optional suffix for queue key (e.g., ":io" or ":cpu")
 
         Returns:
             Broker instance if configured, None otherwise
@@ -173,7 +183,7 @@ class Config:
         from flowrra.brokers.factory import get_broker
 
         if self.broker is not None:
-            return self.broker.create_broker()
+            return self.broker.create_broker(queue_suffix=queue_suffix)
         else:
             return get_broker(None)
 
