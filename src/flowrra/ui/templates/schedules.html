@@ -55,10 +55,10 @@
 <!-- Filter -->
 <div class="section">
     <div class="filter-bar">
-        <a href="/schedules" class="btn {% if not enabled_only %}btn-primary{% else %}btn-secondary{% endif %}">
+        <a href="/flowrra/schedules" class="btn {% if not enabled_only %}btn-primary{% else %}btn-secondary{% endif %}">
             All Schedules
         </a>
-        <a href="/schedules?enabled_only=true" class="btn {% if enabled_only %}btn-primary{% else %}btn-secondary{% endif %}">
+        <a href="/flowrra/schedules?enabled_only=true" class="btn {% if enabled_only %}btn-primary{% else %}btn-secondary{% endif %}">
             Enabled Only
         </a>
     </div>
@@ -141,32 +141,32 @@
     <div class="api-docs">
         <div class="api-endpoint">
             <code class="method-get">GET</code>
-            <code>/api/schedules</code>
+            <code>/flowrra/api/schedules</code>
             <span class="text-muted">- List all schedules</span>
         </div>
         <div class="api-endpoint">
             <code class="method-get">GET</code>
-            <code>/api/schedules/{id}</code>
+            <code>/flowrra/api/schedules/{id}</code>
             <span class="text-muted">- Get schedule details</span>
         </div>
         <div class="api-endpoint">
             <code class="method-post">POST</code>
-            <code>/api/schedules/cron</code>
+            <code>/flowrra/api/schedules/cron</code>
             <span class="text-muted">- Create cron schedule</span>
         </div>
         <div class="api-endpoint">
             <code class="method-put">PUT</code>
-            <code>/api/schedules/{id}/enable</code>
+            <code>/flowrra/api/schedules/{id}/enable</code>
             <span class="text-muted">- Enable schedule</span>
         </div>
         <div class="api-endpoint">
             <code class="method-put">PUT</code>
-            <code>/api/schedules/{id}/disable</code>
+            <code>/flowrra/api/schedules/{id}/disable</code>
             <span class="text-muted">- Disable schedule</span>
         </div>
         <div class="api-endpoint">
             <code class="method-delete">DELETE</code>
-            <code>/api/schedules/{id}</code>
+            <code>/flowrra/api/schedules/{id}</code>
             <span class="text-muted">- Delete schedule</span>
         </div>
     </div>
@@ -180,7 +180,7 @@
 # Example: Create cron schedule via API
 import httpx
 
-response = httpx.post("/api/schedules/cron", json={
+response = httpx.post("/flowrra/api/schedules/cron", json={
     "task_name": "my_task",
     "cron": "0 9 * * *",
     "enabled": True,

@@ -372,7 +372,7 @@ from flowrra import IOExecutor
 @pytest.mark.asyncio
 async def test_throughput():
     """Test task throughput under load."""
-    executor = IOExecutor(num_workers=10)
+    executor = IOExecutor(io_workers=10)
 
     @executor.task()
     async def fast_task(n: int):

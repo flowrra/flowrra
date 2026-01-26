@@ -279,7 +279,7 @@ config = Config(
         socket_timeout=5.0
     ),
     executor=ExecutorConfig(
-        num_workers=10,        # Async workers for I/O tasks
+        io_workers=10,        # Async workers for I/O tasks
         cpu_workers=4,         # Process workers for CPU tasks
         max_queue_size=1000,
         max_retries=3,

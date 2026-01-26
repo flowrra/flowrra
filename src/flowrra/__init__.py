@@ -27,19 +27,21 @@ Basic usage with Flowrra (unified API):
             print(result.result)
 
 Advanced usage with IOExecutor and CPUExecutor:
-    from flowrra import IOExecutor, CPUExecutor
+    from flowrra import IOExecutor, CPUExecutor, Config, ExecutorConfig, BackendConfig
 
     # For I/O-bound tasks only
-    executor = IOExecutor(num_workers=10)
+    config = Config(executor=ExecutorConfig(io_workers=10))
+    executor = IOExecutor(config=config)
 
     # For CPU-bound tasks (requires Redis backend)
-    executor = CPUExecutor(
-        backend='redis://localhost:6379/0',
-        cpu_workers=4
+    config = Config(
+        backend=BackendConfig(url='redis://localhost:6379/0'),
+        executor=ExecutorConfig(cpu_workers=4)
     )
+    executor = CPUExecutor(config=config)
 """
 
-__version__ = "0.1.3"
+__version__ = "0.1.6"
 
 from flowrra.app import Flowrra
 from flowrra.task import Task, TaskResult, TaskStatus

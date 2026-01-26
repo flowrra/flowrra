@@ -40,17 +40,17 @@ class IOExecutor(BaseTaskExecutor):
             config = Config(
                 broker=BrokerConfig(url='redis://localhost:6379/0'),
                 backend=BackendConfig(url='redis://localhost:6379/1'),
-                executor=ExecutorConfig(num_workers=8)
+                executor=ExecutorConfig(io_workers=8)
             )
             executor = IOExecutor(config=config)
 
             # With default config (uses InMemoryBackend and asyncio.PriorityQueue)
             executor = IOExecutor()
         """
-        num_workers = config.executor.num_workers
+        io_workers = config.executor.io_workers
 
         super().__init__(config=config, registry=registry, queue_suffix=":io")
-        self._num_workers = num_workers
+        self._io_workers = io_workers
         self._config = config
 
     def is_broker(self) -> bool:
@@ -133,10 +133,10 @@ class IOExecutor(BaseTaskExecutor):
         self._running = True
         self._workers = [
             asyncio.create_task(self._worker(i))
-            for i in range(self._num_workers)
+            for i in range(self._io_workers)
         ]
 
-        logger.info(f'IOExecutor started: io_workers={self._num_workers}')
+        logger.info(f'IOExecutor started: io_workers={self._io_workers}')
 
     async def stop(self, wait: bool = True, timeout: float | None = 30.0):
         """Stop the I/O executor.

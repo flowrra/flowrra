@@ -70,7 +70,7 @@ async def example_with_config():
     # Create config with custom executor settings
     config = Config(
         executor=ExecutorConfig(
-            num_workers=4,
+            io_workers=4,
             max_retries=5,
             retry_delay=2.0
         )

@@ -8,13 +8,18 @@ Factory function:
     - get_backend(): Create Redis backend from connection string or passthrough any backend instance
 
 Usage:
-    from flowrra import IOExecutor, CPUExecutor
+    from flowrra import IOExecutor, CPUExecutor, Config, ExecutorConfig, BackendConfig
 
     # IOExecutor: No backend needed (InMemoryBackend used internally)
-    io_executor = IOExecutor(num_workers=4)
+    config = Config(executor=ExecutorConfig(io_workers=4))
+    io_executor = IOExecutor(config=config)
 
     # CPUExecutor: Redis connection string (recommended for production)
-    cpu_executor = CPUExecutor(backend="redis://localhost:6379/0", cpu_workers=4)
+    config = Config(
+        backend=BackendConfig(url="redis://localhost:6379/0"),
+        executor=ExecutorConfig(cpu_workers=4)
+    )
+    cpu_executor = CPUExecutor(config=config)
 
 Creating custom backends:
     Subclass BaseResultBackend and implement:

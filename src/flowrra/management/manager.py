@@ -91,7 +91,7 @@ class FlowrraManager:
         executor = self.app._io_executor
         return {
             "running": executor.is_running,
-            "workers": executor._num_workers,
+            "workers": executor._io_workers,
         }
 
     def _get_cpu_executor_stats(self) -> Optional[Dict[str, Any]]:
@@ -102,7 +102,7 @@ class FlowrraManager:
         executor = self.app._cpu_executor
         return {
             "running": executor.is_running,
-            "workers": executor._num_workers,
+            "workers": executor._cpu_workers,
         }
 
     async def _count_pending_tasks(self) -> int:

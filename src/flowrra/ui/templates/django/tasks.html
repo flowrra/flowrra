@@ -10,17 +10,17 @@
 
 <!-- Filter Tabs -->
 <div class="tabs">
-    <a href="/tasks" class="tab {% if not status_filter %}active{% endif %}">All</a>
-    <a href="/tasks?status=pending" class="tab {% if status_filter == 'pending' %}active{% endif %}">
+    <a href="/flowrra/tasks" class="tab {% if not status_filter %}active{% endif %}">All</a>
+    <a href="/flowrra/tasks?status=pending" class="tab {% if status_filter == 'pending' %}active{% endif %}">
         <span class="badge badge-yellow">Pending</span>
     </a>
-    <a href="/tasks?status=running" class="tab {% if status_filter == 'running' %}active{% endif %}">
+    <a href="/flowrra/tasks?status=running" class="tab {% if status_filter == 'running' %}active{% endif %}">
         <span class="badge badge-blue">Running</span>
     </a>
-    <a href="/tasks?status=success" class="tab {% if status_filter == 'success' %}active{% endif %}">
+    <a href="/flowrra/tasks?status=success" class="tab {% if status_filter == 'success' %}active{% endif %}">
         <span class="badge badge-success">Success</span>
     </a>
-    <a href="/tasks?status=failed" class="tab {% if status_filter == 'failed' %}active{% endif %}">
+    <a href="/flowrra/tasks?status=failed" class="tab {% if status_filter == 'failed' %}active{% endif %}">
         <span class="badge badge-error">Failed</span>
     </a>
 </div>
@@ -43,7 +43,7 @@
             <tbody>
                 {% for task in registered_tasks %}
                 <tr>
-                    <td><strong>{{ task.name }}</strong></td>
+                    <td><strong>{{ task.task_name }}</strong></td>
                     <td>
                         {% if task.cpu_bound %}
                             <span class="badge badge-purple">CPU-bound</span>
@@ -91,23 +91,23 @@
                 {% for task in tasks %}
                 <tr>
                     <td><code class="task-id">{{ task.id|slice:":8" }}</code></td>
-                    <td><strong>{{ task.name }}</strong></td>
+                    <td><strong>{{ task.task_name }}</strong></td>
                     <td>
                         <span class="badge badge-{{ task.status  }}">
                             {{ task.status }}
                         </span>
                     </td>
-                    <td>{{ task.created_at |default:"Never" }}</td>
+                    <td>{{ task.submitted_at |default:"Never" }}</td>
                     <td>{{ task.started_at |default:"Never" }}</td>
-                    <td>{{ task.completed_at |default:"Never" }}</td>
+                    <td>{{ task.finished_at |default:"Never" }}</td>
                     <td>
-                        {% if task.started_at and task.completed_at %}
+                        {% if task.started_at and task.finished_at %}
                             {{ task.duration }}
                         {% else %}
                             -
                         {% endif %}
                     </td>
-                    <td>{{ task.retry_count }}</td>
+                    <td>{{ task.retries }}</td>
                 </tr>
                 {% if task.error %}
                 <tr class="error-row">
@@ -134,12 +134,12 @@
     <div class="api-docs">
         <div class="api-endpoint">
             <code class="method-get">GET</code>
-            <code>/api/tasks</code>
+            <code>/flowrra/api/tasks</code>
             <span class="text-muted">- List all registered tasks</span>
         </div>
         <div class="api-endpoint">
             <code class="method-get">GET</code>
-            <code>/api/tasks/{name}</code>
+            <code>/flowrra/api/tasks/{name}</code>
             <span class="text-muted">- Get task info</span>
         </div>
     </div>

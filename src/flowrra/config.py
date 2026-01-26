@@ -91,7 +91,7 @@ class BackendConfig:
 
 @dataclass
 class ExecutorConfig:
-    num_workers: int = 4
+    io_workers: int = 4
     cpu_workers: int | None = None
     max_queue_size: int = 1000
     max_retries: int = 3
@@ -99,8 +99,8 @@ class ExecutorConfig:
 
     def __post_init__(self):
         """Validate executor configuration."""
-        if self.num_workers < 1:
-            raise ValueError("num_workers must be at least 1")
+        if self.io_workers < 1:
+            raise ValueError("io_workers must be at least 1")
 
         if self.cpu_workers is not None and self.cpu_workers < 1:
             raise ValueError("cpu_workers must be at least 1")
@@ -249,7 +249,7 @@ class Config:
         }
 
         executor_map = {
-            "num_workers": ("executor_num_workers", int, 4),
+            "io_workers": ("executor_io_workers", int, 4),
             "cpu_workers": ("executor_cpu_workers", int, None),
             "max_queue_size": ("executor_max_queue_size", int, 1000),
             "max_retries": ("executor_max_retries", int, 3),

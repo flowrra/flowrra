@@ -76,7 +76,7 @@ class CPUExecutor(BaseTaskExecutor):
         super().__init__(config=config, registry=registry, queue_suffix=":cpu")
         self._cpu_workers = config.executor.cpu_workers or os.cpu_count() or 4
         self._cpu_executor: ProcessPoolExecutor | None = None
-        self._num_workers = 1  # Single worker to manage process pool
+        self._io_workers = 1  # Single asyncio worker to manage process pool
 
     def task(self, name: str | None = None, max_retries: int = 3, retry_delay: float = 1.0):
         """Register a sync CPU-bound task.
@@ -167,7 +167,7 @@ class CPUExecutor(BaseTaskExecutor):
         self._running = True
         self._workers = [
             asyncio.create_task(self._worker(i))
-            for i in range(self._num_workers)
+            for i in range(self._io_workers)
         ]
 
         logger.info(f'CPUExecutor started: cpu_workers={self._cpu_workers}')

@@ -19,7 +19,7 @@ from quart import Quart
 from flowrra import Flowrra, Config, ExecutorConfig
 
 # Create Flowrra application
-config = Config(executor=ExecutorConfig(num_workers=4))
+config = Config(executor=ExecutorConfig(io_workers=4))
 flowrra = Flowrra(config=config)
 
 

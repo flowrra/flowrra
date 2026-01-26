@@ -59,7 +59,7 @@
         <div class="stat-content">
             <h3>Registered Tasks</h3>
             <p class="stat-value">{{ stats.tasks.registered }}</p>
-            <a href="/tasks" class="stat-link">View all →</a>
+            <a href="/flowrra/tasks" class="stat-link">View all →</a>
         </div>
     </div>
 
@@ -69,7 +69,7 @@
         <div class="stat-content">
             <h3>Pending Tasks</h3>
             <p class="stat-value status-yellow">{{ stats.tasks.pending }}</p>
-            <a href="/tasks?status=pending" class="stat-link">View →</a>
+            <a href="/flowrra/tasks?status=pending" class="stat-link">View →</a>
         </div>
     </div>
 
@@ -105,7 +105,7 @@
         <div class="stat-content">
             <h3>Health</h3>
             <p class="stat-value status-success">Healthy</p>
-            <a href="/api/health" target="_blank" class="stat-link">API →</a>
+            <a href="/flowrra/api/health" target="_blank" class="stat-link">API →</a>
         </div>
     </div>
 </div>
@@ -115,7 +115,7 @@
 <div class="section">
     <div class="section-header">
         <h3>Recent Failed Tasks</h3>
-        <a href="/tasks?status=failed" class="btn-link">View all →</a>
+        <a href="/flowrra/tasks?status=failed" class="btn-link">View all →</a>
     </div>
     <div class="table-container">
         <table class="data-table">
@@ -131,11 +131,11 @@
             <tbody>
                 {% for task in recent_failed_tasks %}
                 <tr>
-                    <td><code>{{ task.id[:8] }}</code></td>
-                    <td><strong>{{ task.name }}</strong></td>
-                    <td>{{ task.completed_at | format_datetime }}</td>
+                    <td><code>{{ task.task_id[:8] }}</code></td>
+                    <td><strong>{{ task.task_name }}</strong></td>
+                    <td>{{ task.finished_at | format_datetime }}</td>
                     <td class="error-message">{{ task.error[:100] if task.error else 'N/A' }}</td>
-                    <td>{{ task.retry_count }}</td>
+                    <td>{{ task.retries }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -149,7 +149,7 @@
 <div class="section">
     <div class="section-header">
         <h3>Active Schedules</h3>
-        <a href="/schedules" class="btn-link">View all →</a>
+        <a href="/flowrra/schedules" class="btn-link">View all →</a>
     </div>
     <div class="table-container">
         <table class="data-table">
@@ -186,9 +186,9 @@
 <div class="section">
     <h3>Quick Actions</h3>
     <div class="button-group">
-        <a href="/tasks" class="btn btn-primary">View All Tasks</a>
-        <a href="/schedules" class="btn btn-secondary">Manage Schedules</a>
-        <a href="/api/stats" target="_blank" class="btn btn-secondary">API Stats</a>
+        <a href="/flowrra/tasks" class="btn btn-primary">View All Tasks</a>
+        <a href="/flowrra/schedules" class="btn btn-secondary">Manage Schedules</a>
+        <a href="/flowrra/api/stats" target="_blank" class="btn btn-secondary">API Stats</a>
     </div>
 </div>
 {% endblock %}

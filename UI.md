@@ -188,7 +188,7 @@ from flowrra import Flowrra, Config, ExecutorConfig
 from flowrra.ui.fastapi import FastAPIAdapter, create_router
 
 # Configure Flowrra
-config = Config(executor=ExecutorConfig(num_workers=4))
+config = Config(executor=ExecutorConfig(io_workers=4))
 flowrra = Flowrra(config=config)
 
 # Create FastAPI app
@@ -246,7 +246,7 @@ from flowrra import Flowrra, Config, ExecutorConfig
 from flowrra.ui.flask import FlaskAdapter, create_blueprint
 
 # Configure Flowrra
-config = Config(executor=ExecutorConfig(num_workers=4))
+config = Config(executor=ExecutorConfig(io_workers=4))
 flowrra = Flowrra(config=config)
 
 # Create Quart app
@@ -355,7 +355,7 @@ class MyAppConfig(AppConfig):
         from flowrra import Flowrra, Config, ExecutorConfig
 
         # Create Flowrra instance
-        config = Config(executor=ExecutorConfig(num_workers=4))
+        config = Config(executor=ExecutorConfig(io_workers=4))
         flowrra = Flowrra(config=config)
 
         # Define tasks

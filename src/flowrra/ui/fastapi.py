@@ -38,7 +38,7 @@ import logging
 try:
     from fastapi import APIRouter, Request, HTTPException
     from fastapi import WebSocket, WebSocketDisconnect
-    from fastapi.responses import HTMLResponse, JSONResponse
+    from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
     from fastapi.templating import Jinja2Templates
     from pydantic import BaseModel
 except ImportError:
@@ -274,6 +274,18 @@ class FastAPIAdapter(BaseUIAdapter):
         async def api_delete(schedule_id: str):
             """Delete a schedule."""
             return await self.delete_schedule(schedule_id)
+
+        # ========================================
+        # Static Files
+        # ========================================
+
+        @router.get("/static/{file_path:path}", name="static_files")
+        async def serve_static(file_path: str):
+            """Serve static files (CSS, JS, images)."""
+            static_file = self.static_dir / file_path
+            if static_file.exists() and static_file.is_file():
+                return FileResponse(static_file)
+            raise HTTPException(status_code=404, detail="File not found")
 
         return router
 

@@ -843,7 +843,7 @@ config = Config(
         max_connections=50
     ),
     executor=ExecutorConfig(
-        num_workers=10,        # Async workers for I/O tasks
+        io_workers=10,        # Async workers for I/O tasks
         cpu_workers=4,         # Process workers for CPU tasks
         max_queue_size=1000,
         max_retries=3,
@@ -972,7 +972,7 @@ class BackendConfig:
 
 @dataclass
 class ExecutorConfig:
-    num_workers: int = 4          # Async workers for I/O tasks
+    io_workers: int = 4          # Async workers for I/O tasks
     cpu_workers: int | None = None # Process workers for CPU tasks
     max_queue_size: int = 1000
     max_retries: int = 3
