@@ -411,6 +411,7 @@ pre.code-block {
     margin-bottom: -2px;
     transition: all 0.2s;
     white-space: nowrap;
+    position: relative;
 }
 
 .tab:hover {
@@ -420,7 +421,16 @@ pre.code-block {
 
 .tab.active {
     color: var(--primary-color);
-    border-bottom-color: var(--primary-color);
+}
+
+.tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background-color: var(--primary-color);
 }
 
 /* Filter Bar */
