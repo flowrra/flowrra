@@ -20,7 +20,7 @@
                 </a>
             </div>
             <ul class="nav-menu">
-                <li><a href="/" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a></li>
+                <li><a href="/flowrra" class="{% if request.url.path == '/' %}active{% endif %}">Dashboard</a></li>
                 <li><a href="/flowrra/tasks" class="{% if '/tasks' in request.url.path %}active{% endif %}">Tasks</a></li>
                 <li><a href="/flowrra/schedules" class="{% if '/schedules' in request.url.path %}active{% endif %}">Schedules</a></li>
                 <li><a href="/flowrra/api/health" target="_blank">API</a></li>

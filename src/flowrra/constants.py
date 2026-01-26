@@ -7,6 +7,6 @@ TASK_STATUSES = ("pending", "running", "success", "failed")
 STATUS_COLORS = {
     "pending": "yellow",
     "running": "blue",
-    "success": "green",
-    "failed": "red",
+    "success": "success",
+    "failed": "error",
 }

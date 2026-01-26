@@ -41,7 +41,7 @@ Advanced usage with IOExecutor and CPUExecutor:
     executor = CPUExecutor(config=config)
 """
 
-__version__ = "0.1.6"
+__version__ = "0.1.7"
 
 from flowrra.app import Flowrra
 from flowrra.task import Task, TaskResult, TaskStatus

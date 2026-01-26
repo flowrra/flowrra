@@ -140,9 +140,8 @@ class FastAPIAdapter(BaseUIAdapter):
             """Render dashboard page."""
             data = await self.get_dashboard_data()
             return self.templates.TemplateResponse(
-                request=request,
                 name="dashboard.html",
-                context=data,
+                context={"request": request, **data},
             )
 
         @router.get("/tasks", response_class=HTMLResponse, name="tasks")
@@ -154,9 +153,8 @@ class FastAPIAdapter(BaseUIAdapter):
             """
             data = await self.get_tasks_page_data(status=status)
             return self.templates.TemplateResponse(
-                request=request,
                 name="tasks.html",
-                context=data,
+                context={"request": request, **data},
             )
 
         @router.get("/schedules", response_class=HTMLResponse, name="schedules")
@@ -170,9 +168,8 @@ class FastAPIAdapter(BaseUIAdapter):
             """
             data = await self.get_schedules_page_data(enabled_only=enabled_only)
             return self.templates.TemplateResponse(
-                request=request,
                 name="schedules.html",
-                context=data,
+                context={"request": request, **data},
             )
 
         # ========================================

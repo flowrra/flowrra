@@ -83,6 +83,7 @@ class IOExecutor(BaseTaskExecutor):
         task_func = self.registry.get(task.name)
         result = TaskResult(
             task_id=task.id,
+            task_name=task.name,
             status=TaskStatus.RUNNING,
             started_at=datetime.now(),
             retries=task.current_retry,

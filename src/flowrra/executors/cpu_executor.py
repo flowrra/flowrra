@@ -109,6 +109,7 @@ class CPUExecutor(BaseTaskExecutor):
 
         result = TaskResult(
             task_id=task.id,
+            task_name=task.name,
             status=TaskStatus.RUNNING,
             started_at=datetime.now(),
             retries=task.current_retry,
