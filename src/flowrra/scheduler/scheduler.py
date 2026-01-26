@@ -172,6 +172,9 @@ class Scheduler:
     ) -> str:
         """Schedule a task using cron expression.
 
+        Automatically idempotent: if a schedule with the same task_name, cron,
+        args, and kwargs already exists, returns the existing schedule ID.
+
         Args:
             task_name: Name of registered task to execute
             cron: Cron expression (e.g., "0 9 * * *" for daily at 9 AM)
@@ -185,7 +188,7 @@ class Scheduler:
             task_id: Optional custom task ID (generated if not provided)
 
         Returns:
-            Task ID
+            Task ID (existing or newly created)
 
         Raises:
             ValueError: If cron expression is invalid or task not registered
@@ -195,6 +198,20 @@ class Scheduler:
 
         # Validate cron expression
         cron_expr = CronExpression(cron)
+
+        existing = await self.backend.find_by_definition(
+            task_name=task_name,
+            schedule_type=ScheduleType.CRON,
+            schedule=cron,
+            args=args,
+            kwargs=kwargs or {},
+        )
+
+        if existing:
+            logger.debug(
+                f"Schedule already exists for {task_name} with cron '{cron}': {existing.id}"
+            )
+            return existing.id
 
         next_run = cron_expr.next_run()
 
@@ -233,6 +250,9 @@ class Scheduler:
     ) -> str:
         """Schedule a task to run at fixed intervals.
 
+        Automatically idempotent: if a schedule with the same task_name, interval,
+        args, and kwargs already exists, returns the existing schedule ID.
+
         Args:
             task_name: Name of registered task to execute
             interval: Interval in seconds between executions
@@ -246,7 +266,7 @@ class Scheduler:
             task_id: Optional custom task ID (generated if not provided)
 
         Returns:
-            Task ID
+            Task ID (existing or newly created)
 
         Raises:
             ValueError: If interval is invalid or task not registered
@@ -256,6 +276,20 @@ class Scheduler:
 
         if interval <= 0:
             raise ValueError("Interval must be positive")
+
+        existing = await self.backend.find_by_definition(
+            task_name=task_name,
+            schedule_type=ScheduleType.INTERVAL,
+            schedule=str(interval),
+            args=args,
+            kwargs=kwargs or {},
+        )
+
+        if existing:
+            logger.debug(
+                f"Schedule already exists for {task_name} with interval {interval}s: {existing.id}"
+            )
+            return existing.id
 
         # Calculate next run
         next_run = datetime.now() + timedelta(seconds=interval)
@@ -293,6 +327,9 @@ class Scheduler:
     ) -> str:
         """Schedule a task to run once at a specific time.
 
+        Automatically idempotent: if a schedule with the same task_name, run_at,
+        args, and kwargs already exists, returns the existing schedule ID.
+
         Args:
             task_name: Name of registered task to execute
             run_at: When to run the task
@@ -305,13 +342,27 @@ class Scheduler:
             task_id: Optional custom task ID (generated if not provided)
 
         Returns:
-            Task ID
+            Task ID (existing or newly created)
 
         Raises:
             ValueError: If task not registered
         """
         if not self.registry.is_registered(task_name):
             raise ValueError(f"Task '{task_name}' is not registered")
+
+        existing = await self.backend.find_by_definition(
+            task_name=task_name,
+            schedule_type=ScheduleType.ONE_TIME,
+            schedule=run_at.isoformat(),
+            args=args,
+            kwargs=kwargs or {},
+        )
+
+        if existing:
+            logger.debug(
+                f"Schedule already exists for {task_name} at {run_at.isoformat()}: {existing.id}"
+            )
+            return existing.id
 
         scheduled_task = ScheduledTask(
             id=task_id or str(uuid.uuid4()),

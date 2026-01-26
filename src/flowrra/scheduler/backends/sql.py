@@ -135,6 +135,10 @@ class SQLSchedulerBackend(BaseSchedulerBackend):
                 "CREATE INDEX IF NOT EXISTS idx_next_run ON scheduled_tasks(next_run_at)"
             )
 
+            await conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_task_definition ON scheduled_tasks(task_name, schedule_type, schedule)"
+            )
+
     async def _create_mysql_schema(self) -> None:
         """Create MySQL schema."""
         pool = self._pool
@@ -160,7 +164,8 @@ class SQLSchedulerBackend(BaseSchedulerBackend):
                         retry_delay FLOAT NOT NULL DEFAULT 1.0,
                         priority INT NOT NULL DEFAULT 0,
                         INDEX idx_enabled (enabled),
-                        INDEX idx_next_run (next_run_at)
+                        INDEX idx_next_run (next_run_at),
+                        INDEX idx_task_definition (task_name, schedule_type, schedule(255))
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
                     """
                 )
@@ -477,6 +482,80 @@ class SQLSchedulerBackend(BaseSchedulerBackend):
                     count = cursor.rowcount
                 await conn.commit()
                 return count
+
+    async def find_by_definition(
+        self,
+        task_name: str,
+        schedule_type: ScheduleType,
+        schedule: str,
+        args: tuple = (),
+        kwargs: dict | None = None,
+    ) -> ScheduledTask | None:
+        """Find exact schedule match by complete definition.
+
+        Used for idempotency - finds schedules with identical parameters.
+
+        Args:
+            task_name: Task name to match
+            schedule_type: Type of schedule (CRON, INTERVAL, ONE_TIME)
+            schedule: Schedule expression/value
+            args: Task arguments tuple
+            kwargs: Task keyword arguments dict
+
+        Returns:
+            Matching ScheduledTask if found, None otherwise
+        """
+        pool = await self._ensure_connected()
+
+        # Normalize kwargs
+        normalized_kwargs = kwargs or {}
+
+        # Serialize args and kwargs for comparison
+        args_json = json.dumps(list(args))
+        kwargs_json = json.dumps(normalized_kwargs)
+
+        if self.db_type == "postgresql":
+            async with pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT * FROM scheduled_tasks
+                    WHERE task_name = $1
+                      AND schedule_type = $2
+                      AND schedule = $3
+                      AND args::text = $4::text
+                      AND kwargs::text = $5::text
+                    LIMIT 1
+                    """,
+                    task_name,
+                    schedule_type.value,
+                    schedule,
+                    args_json,
+                    kwargs_json,
+                )
+                if row is None:
+                    return None
+                return self._pg_row_to_task(row)
+        else:  # mysql
+            import aiomysql
+
+            async with pool.acquire() as conn:
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    await cursor.execute(
+                        """
+                        SELECT * FROM scheduled_tasks
+                        WHERE task_name = %s
+                          AND schedule_type = %s
+                          AND schedule = %s
+                          AND args = %s
+                          AND kwargs = %s
+                        LIMIT 1
+                        """,
+                        (task_name, schedule_type.value, schedule, args_json, kwargs_json),
+                    )
+                    row = await cursor.fetchone()
+                    if row is None:
+                        return None
+                    return self._mysql_row_to_task(row)
 
     async def close(self) -> None:
         """Close database connection pool."""

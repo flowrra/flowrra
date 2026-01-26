@@ -92,7 +92,7 @@ class BackendConfig:
 @dataclass
 class ExecutorConfig:
     io_workers: int = 4
-    cpu_workers: int | None = None
+    cpu_workers: int = os.cpu_count() or 1
     max_queue_size: int = 1000
     max_retries: int = 3
     retry_delay: float = 1.0
@@ -102,7 +102,7 @@ class ExecutorConfig:
         if self.io_workers < 1:
             raise ValueError("io_workers must be at least 1")
 
-        if self.cpu_workers is not None and self.cpu_workers < 1:
+        if self.cpu_workers < 1:
             raise ValueError("cpu_workers must be at least 1")
 
         if self.max_queue_size < 1:

@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import List
 
 from flowrra.scheduler.backends.base import BaseSchedulerBackend
-from flowrra.scheduler.models import ScheduledTask
+from flowrra.scheduler.models import ScheduledTask, ScheduleType
 
 
 class SQLiteSchedulerBackend(BaseSchedulerBackend):
@@ -80,6 +80,14 @@ class SQLiteSchedulerBackend(BaseSchedulerBackend):
             """
             CREATE INDEX IF NOT EXISTS idx_next_run
             ON scheduled_tasks(next_run_at)
+            """
+        )
+
+        # Index for idempotency checks (find_by_definition)
+        await self._db.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_task_definition
+            ON scheduled_tasks(task_name, schedule_type, schedule)
             """
         )
 
@@ -254,6 +262,55 @@ class SQLiteSchedulerBackend(BaseSchedulerBackend):
         await db.commit()
 
         return result.rowcount
+
+    async def find_by_definition(
+        self,
+        task_name: str,
+        schedule_type: ScheduleType,
+        schedule: str,
+        args: tuple = (),
+        kwargs: dict | None = None,
+    ) -> ScheduledTask | None:
+        """Find exact schedule match by complete definition.
+
+        Used for idempotency - finds schedules with identical parameters.
+
+        Args:
+            task_name: Task name to match
+            schedule_type: Type of schedule (CRON, INTERVAL, ONE_TIME)
+            schedule: Schedule expression/value
+            args: Task arguments tuple
+            kwargs: Task keyword arguments dict
+
+        Returns:
+            Matching ScheduledTask if found, None otherwise
+        """
+        db = await self._ensure_connected()
+
+        # Normalize kwargs
+        normalized_kwargs = kwargs or {}
+
+        # Serialize args and kwargs for comparison
+        args_json = json.dumps(list(args))
+        kwargs_json = json.dumps(normalized_kwargs)
+
+        async with db.execute(
+            """
+            SELECT * FROM scheduled_tasks
+            WHERE task_name = ?
+              AND schedule_type = ?
+              AND schedule = ?
+              AND args = ?
+              AND kwargs = ?
+            LIMIT 1
+            """,
+            (task_name, schedule_type.value, schedule, args_json, kwargs_json),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row is None:
+                return None
+
+            return self._row_to_task(row)
 
     async def close(self) -> None:
         """Close database connection."""

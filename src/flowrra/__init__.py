@@ -34,9 +34,10 @@ Advanced usage with IOExecutor and CPUExecutor:
     executor = IOExecutor(config=config)
 
     # For CPU-bound tasks (requires Redis backend)
+    # cpu_workers defaults to os.cpu_count() if not specified
     config = Config(
         backend=BackendConfig(url='redis://localhost:6379/0'),
-        executor=ExecutorConfig(cpu_workers=4)
+        executor=ExecutorConfig(cpu_workers=4)  # or omit to use CPU core count
     )
     executor = CPUExecutor(config=config)
 """

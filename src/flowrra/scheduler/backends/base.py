@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List
 
-from flowrra.scheduler.models import ScheduledTask
+from flowrra.scheduler.models import ScheduledTask, ScheduleType
 
 
 class BaseSchedulerBackend(ABC):
@@ -114,6 +114,31 @@ class BaseSchedulerBackend(ABC):
 
         Returns:
             Number of tasks deleted
+        """
+        pass
+
+    @abstractmethod
+    async def find_by_definition(
+        self,
+        task_name: str,
+        schedule_type: ScheduleType,
+        schedule: str,
+        args: tuple = (),
+        kwargs: dict | None = None,
+    ) -> ScheduledTask | None:
+        """Find exact schedule match by complete definition.
+
+        Used for idempotency - finds schedules with identical parameters.
+
+        Args:
+            task_name: Task name to match
+            schedule_type: Type of schedule (CRON, INTERVAL, ONE_TIME)
+            schedule: Schedule expression/value
+            args: Task arguments tuple
+            kwargs: Task keyword arguments dict
+
+        Returns:
+            Matching ScheduledTask if found, None otherwise
         """
         pass
 
