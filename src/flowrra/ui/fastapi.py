@@ -145,13 +145,18 @@ class FastAPIAdapter(BaseUIAdapter):
             )
 
         @router.get("/tasks", response_class=HTMLResponse, name="tasks")
-        async def tasks_page(request: Request, status: Optional[str] = None):
+        async def tasks_page(
+            request: Request,
+            status: Optional[str] = None,
+            limit: int = 200
+        ):
             """Render tasks page.
 
             Args:
                 status: Optional status filter (pending/running/success/failed)
+                limit: Maximum number of tasks to display (default: 200)
             """
-            data = await self.get_tasks_page_data(status=status)
+            data = await self.get_tasks_page_data(status=status, limit=limit)
             return self.templates.TemplateResponse(
                 name="tasks.html",
                 context={"request": request, **data},

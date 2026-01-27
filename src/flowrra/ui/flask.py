@@ -165,7 +165,8 @@ class FlaskAdapter(BaseUIAdapter):
         async def tasks_page():
             """Render tasks page."""
             status = request.args.get("status")
-            data = await self.get_tasks_page_data(status=status)
+            limit = int(request.args.get("limit", 200))
+            data = await self.get_tasks_page_data(status=status, limit=limit)
             if USING_QUART:
                 return await render_template("tasks.html", **data)
             else:

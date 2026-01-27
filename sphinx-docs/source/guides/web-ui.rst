@@ -25,6 +25,7 @@ For FastAPI applications, use ``create_router()``:
 
 .. code-block:: python
 
+   from contextlib import asynccontextmanager
    from fastapi import FastAPI
    from flowrra import Flowrra
    from flowrra.ui.fastapi import create_router
@@ -42,23 +43,40 @@ For FastAPI applications, use ``create_router()``:
        await asyncio.sleep(2)  # Simulate email sending
        return {"status": "sent", "to": to}
 
-   # Create FastAPI app and include Flowrra UI router
-   app = FastAPI()
+   @flowrra.task()
+   async def daily_report():
+       """Generate daily report."""
+       print("Generating daily report...")
+       return {"status": "completed"}
 
+   # Create scheduler and schedule tasks
+   scheduler = flowrra.create_scheduler()
+
+   # Lifespan context manager for startup/shutdown
+   @asynccontextmanager
+   async def lifespan(app: FastAPI):
+       # Schedule daily report at 9 AM (before starting)
+       await scheduler.schedule_cron(
+           task_name="daily_report",
+           cron="0 9 * * *",
+           description="Daily report at 9 AM"
+       )
+
+       # Startup
+       await flowrra.start()
+       yield
+       # Shutdown
+       await flowrra.stop()
+
+   # Create FastAPI app with lifespan
+   app = FastAPI(lifespan=lifespan)
+
+   # Include Flowrra UI router
    app.include_router(
        create_router(flowrra),
        prefix="/flowrra",
        tags=["flowrra"]
    )
-
-   # Lifecycle events
-   @app.on_event("startup")
-   async def startup():
-       await flowrra.start()
-
-   @app.on_event("shutdown")
-   async def shutdown():
-       await flowrra.stop()
 
    # Your other FastAPI routes
    @app.get("/")
@@ -97,6 +115,15 @@ For Flask or Quart applications, use ``create_blueprint()``.
        await asyncio.sleep(2)
        return {"status": "sent", "to": to}
 
+   @flowrra.task()
+   async def cleanup_old_data():
+       """Clean up old data."""
+       print("Cleaning up old data...")
+       return {"cleaned": 100}
+
+   # Create scheduler and schedule tasks
+   scheduler = flowrra.create_scheduler()
+
    # Create Quart app and register Flowrra blueprint
    app = Quart(__name__)
 
@@ -108,6 +135,12 @@ For Flask or Quart applications, use ``create_blueprint()``.
    # Lifecycle events
    @app.before_serving
    async def startup():
+       # Schedule cleanup task to run daily at midnight
+       await scheduler.schedule_cron(
+           task_name="cleanup_old_data",
+           cron="0 0 * * *",
+           description="Daily cleanup at midnight"
+       )
        await flowrra.start()
 
    @app.after_serving
@@ -145,6 +178,23 @@ For Flask or Quart applications, use ``create_blueprint()``.
        await asyncio.sleep(2)
        return {"status": "sent", "to": to}
 
+   @flowrra.task()
+   async def weekly_summary():
+       """Generate weekly summary."""
+       print("Generating weekly summary...")
+       return {"status": "completed"}
+
+   # Create scheduler and schedule tasks
+   scheduler = flowrra.create_scheduler()
+
+   async def setup_schedules():
+       # Schedule weekly summary every Monday at 9 AM
+       await scheduler.schedule_cron(
+           task_name="weekly_summary",
+           cron="0 9 * * 1",
+           description="Weekly summary on Monday"
+       )
+
    # Create Flask app and register Flowrra blueprint
    app = Flask(__name__)
 
@@ -159,8 +209,12 @@ For Flask or Quart applications, use ``create_blueprint()``.
        return {"message": "Hello World"}
 
    # Start Flowrra in background thread
+   async def run_flowrra_async():
+       await setup_schedules()
+       await flowrra.run()
+
    def run_flowrra():
-       asyncio.run(flowrra.run())
+       asyncio.run(run_flowrra_async())
 
    if __name__ == "__main__":
        thread = threading.Thread(target=run_flowrra, daemon=True)
@@ -195,6 +249,15 @@ For Django applications, use ``get_urls()``:
        await asyncio.sleep(2)
        return {"status": "sent", "to": to}
 
+   @flowrra.task()
+   async def monthly_backup():
+       """Perform monthly backup."""
+       print("Running monthly backup...")
+       return {"status": "backup_complete"}
+
+   # Create scheduler
+   scheduler = flowrra.create_scheduler()
+
 **2. Add to your Django project's urls.py:**
 
 .. code-block:: python
@@ -224,9 +287,20 @@ For Django applications, use ``get_urls()``:
        name = 'myapp'
 
        def ready(self):
-           from myapp.flowrra_app import flowrra
-           # Start Flowrra when Django starts
-           asyncio.create_task(flowrra.start())
+           from myapp.flowrra_app import flowrra, scheduler
+
+           # Schedule tasks before starting
+           async def setup():
+               # Schedule monthly backup on 1st day at midnight
+               await scheduler.schedule_cron(
+                   task_name="monthly_backup",
+                   cron="0 0 1 * *",
+                   description="Monthly backup on 1st"
+               )
+               # Start Flowrra when Django starts
+               await flowrra.start()
+
+           asyncio.create_task(setup())
 
 Access the UI at: ``http://localhost:8000/flowrra/``
 
@@ -413,11 +487,14 @@ Protect the Flowrra UI with authentication:
 
 .. code-block:: python
 
+   from contextlib import asynccontextmanager
    from fastapi import FastAPI, Depends, HTTPException, status
    from fastapi.security import HTTPBasic, HTTPBasicCredentials
+   from flowrra import Flowrra
    from flowrra.ui.fastapi import create_router
    import secrets
 
+   flowrra = Flowrra.from_urls()
    security = HTTPBasic()
 
    def verify_credentials(credentials: HTTPBasicCredentials = Depends(security)):
@@ -433,7 +510,13 @@ Protect the Flowrra UI with authentication:
            )
        return credentials.username
 
-   app = FastAPI()
+   @asynccontextmanager
+   async def lifespan(app: FastAPI):
+       await flowrra.start()
+       yield
+       await flowrra.stop()
+
+   app = FastAPI(lifespan=lifespan)
    flowrra_router = create_router(flowrra)
 
    # Add authentication dependency to all routes

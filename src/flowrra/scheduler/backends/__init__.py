@@ -2,8 +2,16 @@
 
 from flowrra.scheduler.backends.base import BaseSchedulerBackend
 from flowrra.scheduler.backends.sqlite import SQLiteSchedulerBackend
+from flowrra.scheduler.backends.postgresql import PostgreSQLSchedulerBackend
+from flowrra.scheduler.backends.mysql import MySQLSchedulerBackend
 
-__all__ = ["BaseSchedulerBackend", "SQLiteSchedulerBackend", "get_scheduler_backend"]
+__all__ = [
+    "BaseSchedulerBackend",
+    "SQLiteSchedulerBackend",
+    "PostgreSQLSchedulerBackend",
+    "MySQLSchedulerBackend",
+    "get_scheduler_backend",
+]
 
 
 def get_scheduler_backend(url: str | None = None) -> BaseSchedulerBackend:
@@ -52,18 +60,23 @@ def get_scheduler_backend(url: str | None = None) -> BaseSchedulerBackend:
         else:
             return SQLiteSchedulerBackend()
 
-    elif scheme in ("postgresql", "postgres", "mysql"):
+    elif scheme in ("postgresql", "postgres"):
         try:
-            from flowrra.scheduler.backends.sql import SQLSchedulerBackend
+            return PostgreSQLSchedulerBackend(url)
         except ImportError as e:
-            db_name = "PostgreSQL" if scheme in ("postgresql", "postgres") else "MySQL"
-            extra = "postgresql" if scheme in ("postgresql", "postgres") else "mysql"
             raise ImportError(
-                f"{db_name} backend requires additional packages. "
-                f"Install with: pip install flowrra[{extra}]"
+                "PostgreSQL backend requires additional packages. "
+                "Install with: pip install flowrra[postgresql]"
             ) from e
 
-        return SQLSchedulerBackend(url)
+    elif scheme == "mysql":
+        try:
+            return MySQLSchedulerBackend(url)
+        except ImportError as e:
+            raise ImportError(
+                "MySQL backend requires additional packages. "
+                "Install with: pip install flowrra[mysql]"
+            ) from e
 
     else:
         raise ValueError(

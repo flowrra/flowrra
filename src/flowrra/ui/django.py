@@ -162,7 +162,8 @@ class DjangoAdapter(BaseUIAdapter):
         async def tasks_page(request: HttpRequest) -> HttpResponse:
             """Render tasks page."""
             status = request.GET.get('status')
-            data = await self.get_tasks_page_data(status=status)
+            limit = int(request.GET.get('limit', 200))
+            data = await self.get_tasks_page_data(status=status, limit=limit)
             data['format_datetime'] = self.format_datetime
             data['format_duration'] = self.format_duration
             data['get_status_color'] = self.get_status_color

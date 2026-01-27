@@ -264,11 +264,10 @@ class TestBackendFactory:
     )
     def test_factory_postgresql(self):
         """Test factory with PostgreSQL URL."""
-        from flowrra.scheduler.backends.sql import SQLSchedulerBackend
+        from flowrra.scheduler.backends.postgresql import PostgreSQLSchedulerBackend
 
         backend = get_scheduler_backend("postgresql://user:pass@localhost/flowrra")
-        assert isinstance(backend, SQLSchedulerBackend)
-        assert backend.db_type == "postgresql"
+        assert isinstance(backend, PostgreSQLSchedulerBackend)
 
     @pytest.mark.skipif(
         not __import__('importlib').util.find_spec('aiomysql'),
@@ -276,8 +275,7 @@ class TestBackendFactory:
     )
     def test_factory_mysql(self):
         """Test factory with MySQL URL."""
-        from flowrra.scheduler.backends.sql import SQLSchedulerBackend
+        from flowrra.scheduler.backends.mysql import MySQLSchedulerBackend
 
         backend = get_scheduler_backend("mysql://user:pass@localhost/flowrra")
-        assert isinstance(backend, SQLSchedulerBackend)
-        assert backend.db_type == "mysql"
+        assert isinstance(backend, MySQLSchedulerBackend)

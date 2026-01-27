@@ -58,13 +58,13 @@ class UIService:
         }
 
     async def get_tasks_page_data(
-        self, status: Optional[str] = None, limit: int = 50
+        self, status: Optional[str] = None, limit: int = 200
     ) -> Dict[str, Any]:
         """Get data for tasks page.
 
         Args:
             status: Filter by status (pending/running/success/failed)
-            limit: Maximum tasks to return
+            limit: Maximum tasks to return (default: 200)
 
         Returns:
             Dictionary with tasks data

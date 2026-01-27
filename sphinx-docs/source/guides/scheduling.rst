@@ -238,6 +238,235 @@ MySQL
         backend="mysql://user:password@localhost:3306/flowrra"
     )
 
+Persistent Storage Examples
+----------------------------
+
+For production deployments, using PostgreSQL or MySQL provides better concurrency, distributed worker support, and high availability.
+
+PostgreSQL Production Example
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Complete example with PostgreSQL backend:
+
+.. code-block:: python
+
+    from flowrra import Flowrra
+    import asyncio
+    import os
+
+    # Create Flowrra app
+    app = Flowrra.from_urls(
+        broker='redis://localhost:6379/0',
+        backend='redis://localhost:6379/1'
+    )
+
+    # Define tasks
+    @app.task()
+    async def process_batch(batch_id: int):
+        """Process data batch."""
+        print(f"Processing batch {batch_id}...")
+        return {"status": "completed", "batch_id": batch_id}
+
+    @app.task()
+    async def cleanup_old_records():
+        """Clean up old database records."""
+        print("Cleaning up old records...")
+        return {"cleaned": 1000}
+
+    # Create scheduler with PostgreSQL backend
+    scheduler = app.create_scheduler(
+        backend=os.getenv(
+            "SCHEDULER_DB",
+            "postgresql://flowrra:password@localhost:5432/flowrra_prod"
+        )
+    )
+
+    async def main():
+        # Schedule hourly batch processing
+        await scheduler.schedule_cron(
+            task_name="process_batch",
+            cron="0 * * * *",
+            args=(1,),
+            description="Process data every hour"
+        )
+
+        # Schedule daily cleanup at 2 AM
+        await scheduler.schedule_cron(
+            task_name="cleanup_old_records",
+            cron="0 2 * * *",
+            description="Daily cleanup at 2 AM"
+        )
+
+        # Start app (automatically starts scheduler)
+        await app.start()
+
+        # Keep running
+        await asyncio.Event().wait()
+
+    if __name__ == "__main__":
+        asyncio.run(main())
+
+**Benefits:**
+
+* **Distributed workers**: Run multiple scheduler instances safely
+* **High availability**: No single point of failure
+* **Better concurrency**: PostgreSQL handles concurrent schedule updates
+* **ACID transactions**: Guaranteed consistency
+* **Connection pooling**: Efficient resource usage via asyncpg
+
+MySQL/MariaDB Production Example
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Complete example with MySQL backend (also compatible with MariaDB):
+
+.. code-block:: python
+
+    from flowrra import Flowrra
+    import asyncio
+    import os
+
+    # Create Flowrra app
+    app = Flowrra.from_urls(
+        broker='redis://localhost:6379/0',
+        backend='redis://localhost:6379/1'
+    )
+
+    # Define tasks
+    @app.task()
+    async def send_notifications(user_count: int):
+        """Send notifications to users."""
+        print(f"Sending notifications to {user_count} users...")
+        return {"sent": user_count}
+
+    @app.task()
+    async def generate_analytics():
+        """Generate analytics reports."""
+        print("Generating analytics...")
+        return {"status": "completed"}
+
+    # Create scheduler with MySQL backend
+    scheduler = app.create_scheduler(
+        backend=os.getenv(
+            "SCHEDULER_DB",
+            "mysql://flowrra:password@localhost:3306/flowrra_prod"
+        )
+    )
+
+    async def main():
+        # Schedule notifications every 15 minutes
+        await scheduler.schedule_cron(
+            task_name="send_notifications",
+            cron="*/15 * * * *",
+            args=(100,),
+            description="Send notifications every 15 minutes"
+        )
+
+        # Schedule weekly analytics on Mondays at 9 AM
+        await scheduler.schedule_cron(
+            task_name="generate_analytics",
+            cron="0 9 * * 1",
+            description="Weekly analytics on Monday"
+        )
+
+        # Start app (automatically starts scheduler)
+        await app.start()
+
+        # Keep running
+        await asyncio.Event().wait()
+
+    if __name__ == "__main__":
+        asyncio.run(main())
+
+**MariaDB Note:**
+
+The MySQL backend is fully compatible with MariaDB. Use the same connection string format:
+
+.. code-block:: python
+
+    backend="mysql://user:password@localhost:3306/database"
+
+Connection String Formats
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+    # SQLite (default)
+    backend=None  # Creates .flowrra_schedule.db
+    backend="sqlite:///path/to/schedule.db"
+
+    # PostgreSQL
+    backend="postgresql://user:password@host:5432/database"
+    backend="postgresql://user:password@host:5432/database?sslmode=require"
+
+    # PostgreSQL with connection options
+    backend="postgresql://user:password@host:5432/database?sslmode=require&pool_min_size=5&pool_max_size=20"
+
+    # MySQL/MariaDB
+    backend="mysql://user:password@host:3306/database"
+    backend="mysql://user:password@host:3306/database?charset=utf8mb4"
+
+Environment Variables for Production
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use environment variables to manage database credentials securely:
+
+.. code-block:: python
+
+    import os
+    from flowrra import Flowrra
+
+    app = Flowrra.from_urls(
+        broker=os.getenv("REDIS_BROKER_URL"),
+        backend=os.getenv("REDIS_BACKEND_URL")
+    )
+
+    scheduler = app.create_scheduler(
+        backend=os.getenv("SCHEDULER_DATABASE_URL")
+    )
+
+.. code-block:: bash
+
+    # .env file for production
+    REDIS_BROKER_URL=redis://localhost:6379/0
+    REDIS_BACKEND_URL=redis://localhost:6379/1
+    SCHEDULER_DATABASE_URL=postgresql://flowrra:secret@db.example.com:5432/flowrra_prod
+
+.. code-block:: bash
+
+    # .env file for staging
+    REDIS_BROKER_URL=redis://staging-redis:6379/0
+    REDIS_BACKEND_URL=redis://staging-redis:6379/1
+    SCHEDULER_DATABASE_URL=postgresql://flowrra:secret@staging-db.example.com:5432/flowrra_staging
+
+When to Use Each Backend
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**SQLite (Default)**:
+
+* Single-instance deployments
+* Development and testing
+* Low to moderate schedule volume
+* No external database infrastructure
+* Simple file-based storage
+
+**PostgreSQL (Recommended for Production)**:
+
+* Multiple worker instances
+* High availability requirements
+* High concurrency needs
+* Enterprise deployments
+* Advanced features (JSONB, full-text search)
+* Complex queries and reporting
+* Cloud deployments (AWS RDS, Google Cloud SQL, etc.)
+
+**MySQL/MariaDB**:
+
+* Existing MySQL/MariaDB infrastructure
+* Multi-instance deployments
+* Good balance of features and simplicity
+* MariaDB compatibility required
+* Shared hosting environments
+
 Integration with Executors
 ---------------------------
 
